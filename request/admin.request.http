@@ -1,0 +1,36 @@
+### Create Admin Account
+POST http://localhost:3000/api/admin/create-admin
+Content-Type: application/json
+
+{
+  "email": "abiyyiaja@gmail.com",
+  "password": "lama12345"
+}
+
+### Create SubKoordinatorBidang Account
+POST http://localhost:3000/api/admin/create-subkoordinator
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZkY2ViNjZmLTQyODEtNDE5YS1hMTIzLWY3OTg3ZmE2NjI1MiIsImVtYWlsIjoiYWJpeXlpYWphQGdtYWlsLmNvbSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc1MTA1MDU1NCwiZXhwIjoxNzUxMTM2OTU0fQ.q6C9p6j08EId2D5e3OZUEFhyA_d3az6oVZsDS3yvh3o
+
+{
+  "email": "infopublik@gmail.com",
+  "password": "infopublik1",
+  "nama": "John Info Publik",
+  "bidangId": "23c042e5-f030-4e9d-bf5e-0566330c16d6"
+}
+
+
+### Approve peserta magang oleh admin
+PUT http://localhost:3000/api/admin/peserta/approve/892c6ee1-653f-44e6-8d21-119672dfc7d2
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZkY2ViNjZmLTQyODEtNDE5YS1hMTIzLWY3OTg3ZmE2NjI1MiIsImVtYWlsIjoiYWJpeXlpYWphQGdtYWlsLmNvbSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc1MTA1MDU1NCwiZXhwIjoxNzUxMTM2OTU0fQ.q6C9p6j08EId2D5e3OZUEFhyA_d3az6oVZsDS3yvh3o
+
+### Membuat bidang baru
+POST http://localhost:3000/api/admin/bidang/create-bidang
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZkY2ViNjZmLTQyODEtNDE5YS1hMTIzLWY3OTg3ZmE2NjI1MiIsImVtYWlsIjoiYWJpeXlpYWphQGdtYWlsLmNvbSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc1MTA1MDU1NCwiZXhwIjoxNzUxMTM2OTU0fQ.q6C9p6j08EId2D5e3OZUEFhyA_d3az6oVZsDS3yvh3o
+
+{
+  "nama": "Statistik",
+  "kuota": 10
+}

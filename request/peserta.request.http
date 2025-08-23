@@ -1,0 +1,15 @@
+### Update profil peserta magang
+PUT http://localhost:3000/api/peserta/profile
+Content-Type: application/json
+Authorization: Bearer <TOKEN_PESERTA>
+
+{
+  "namaLengkap": "Dewi Ananda",
+  "tglLahir": "2000-01-01",
+  "noTelepon": "081234567890",
+  "nik": "3512010102030001",
+  "nimNis": "TI12345678",
+  "instansi": "Universitas Bina Sidoarjo",
+  "jurusan": "Teknik Komputer",
+  "alamat": "Jl. Cemara No. 45"
+}

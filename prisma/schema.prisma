@@ -1,0 +1,196 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  peserta_magang
+  admin
+  sub_koordinator_bidang
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  pesertaMagang        PesertaMagang?
+  admin                Admin?
+  subKoordinatorBidang SubKoordinatorBidang?
+  kritikSaran          KritikSaran[]
+  ulasanMagang         UlasanMagang[]
+  notifikasi           Notifikasi[]
+}
+
+model PesertaMagang {
+  id          String   @id @default(uuid())
+  namaLengkap String   @map("nama_lengkap")
+  tglLahir    DateTime @map("tgl_lahir") @db.Date
+  noTelepon   String   @map("no_telepon")
+  nik         String
+  nimNis      String   @map("nim_nis")
+  instansi    String
+  jurusan     String
+  alamat      String
+  pasFoto     String   @map("pas_foto")
+  isApproved  Boolean  @default(false) @map("is_approved")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  userId      String               @unique @map("user_id")
+  bidangId    String?              @map("bidang_id")  // ⬅️ Tambahkan ini (opsional)
+  user        User                 @relation(fields: [userId], references: [id])
+  bidang      KuotaBidang?         @relation(fields: [bidangId], references: [id]) // ⬅️ Relasi opsional
+  ajuan       AjuanMagang[]
+  logbook     Logbook[]
+  laporan     LaporanHasilMagang[]
+  sertifikat  Sertifikat[]
+  berkas      BerkasMagang[]
+}
+
+model AjuanMagang {
+  id                String   @id @default(uuid())
+  jenisMagang       String   @map("jenis_magang")
+  kategoriMagang    String   @map("kategori_magang")
+  statusPendidikan  String   @map("status_pendidikan")
+  jenjangPendidikan String   @map("jenjang_pendidikan")
+  instansi          String
+  jurusan           String
+  tglMulai          DateTime @map("tgl_mulai")
+  tglSelesai        DateTime @map("tgl_selesai")
+  temaMagang        String   @map("tema_magang")
+  statusUsulan      String   @map("status_usulan")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  pesertaId String        @map("peserta_id")
+  bidangId  String        @map("bidang_id")
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
+  bidang    KuotaBidang   @relation(fields: [bidangId], references: [id])
+}
+
+model KuotaBidang {
+  id        String   @id @default(uuid())
+  nama      String
+  kuota     Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  ajuan          AjuanMagang[]
+  subkoordinator SubKoordinatorBidang[]
+  PesertaMagang PesertaMagang[]
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+model SubKoordinatorBidang {
+  id       String @id @default(uuid())
+  nama     String
+  userId   String @unique @map("user_id")
+  bidangId String @map("bidang_id")
+
+  user      User        @relation(fields: [userId], references: [id])
+  bidang    KuotaBidang @relation(fields: [bidangId], references: [id])
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+}
+
+model Logbook {
+  id        String   @id @default(uuid())
+  tanggal   DateTime
+  deskripsi String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  pesertaId String        @map("peserta_id")
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
+}
+
+model KritikSaran {
+  id        String   @id @default(uuid())
+  nama      String
+  email     String
+  pesan     String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+model UlasanMagang {
+  id        String   @id @default(uuid())
+  ulasan    String
+  rating    Int
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+}
+
+model LaporanHasilMagang {
+  id          String   @id @default(uuid())
+  fileLaporan String   @map("file_laporan")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  pesertaId String        @map("peserta_id")
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
+}
+
+model Sertifikat {
+  id           String   @id @default(uuid())
+  noSertifikat String   @map("no_sertifikat")
+  nilai        Int
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  pesertaId String        @map("peserta_id")
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
+}
+
+model BerkasMagang {
+  id                   String   @id @default(uuid())
+  suratPengantar       String   @map("surat_pengantar")
+  proposalMagang       String   @map("proposal_magang")
+  cv                   String
+  pasFoto              String   @map("pas_foto")
+  suratBakesbangpolSda String   @map("surat_bakesbangpol_sda")
+  suratBakesbangpolSby String   @map("surat_bakesbangpol_sby")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  pesertaId String        @map("peserta_id")
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
+}
+
+model Notifikasi {
+  id        String   @id @default(uuid())
+  tipe      String
+  judul     String
+  pesan     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id])
+}
