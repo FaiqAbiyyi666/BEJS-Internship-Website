@@ -3,45 +3,182 @@ const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
 
 module.exports = {
-  updateProfileSubKoordinator: async (req, res, next) => {
+  // Create Sub Koordinator Akun
+  createSubKoordinator: async (req, res, next) => {
     try {
-      const userId = req.user.id;
-      const { nama, email, password, bidangId } = req.body;
+      const { email, password, nama, bidangId } = req.body;
 
-      // Cek user dan pastikan role sesuai
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (!user || user.role !== 'sub_koordinator_bidang') {
-        return res.status(403).json({
+      if (!email || !password || !nama || !bidangId) {
+        return res.status(400).json({
           status: false,
-          message: 'Akses ditolak',
+          message: 'Email, password, nama, dan bidangId wajib diisi',
           data: null,
         });
       }
 
-      // Cek sub koordinator
+      // Cek email unik
+      const existEmail = await prisma.user.findUnique({ where: { email } });
+      if (existEmail) {
+        return res.status(409).json({
+          status: false,
+          message: 'Email sudah digunakan',
+          data: null,
+        });
+      }
+
+      // Cek nama unik
+      const existNama = await prisma.subKoordinatorBidang.findFirst({
+        where: { nama },
+      });
+      if (existNama) {
+        return res.status(409).json({
+          status: false,
+          message: 'Nama Sub Koordinator sudah digunakan',
+          data: null,
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const user = await prisma.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          role: 'sub_koordinator_bidang',
+        },
+      });
+
+      const sub = await prisma.subKoordinatorBidang.create({
+        data: {
+          userId: user.id,
+          nama,
+          bidangId,
+        },
+        include: { bidang: true },
+      });
+
+      res.status(201).json({
+        status: true,
+        message: 'Akun Sub Koordinator berhasil dibuat',
+        data: { user, sub },
+      });
+    } catch (error) {
+      console.error(error);
+      next(error);
+    }
+  },
+  
+  // GET semua sub koordinator (hanya name, email, bidang)
+  getAllSubkoorbid: async (req, res, next) => {
+    try {
+      const subs = await prisma.subKoordinatorBidang.findMany({
+        include: {
+          user: { select: { id: true, email: true } },
+          bidang: { select: { id: true, nama: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const result = subs.map((s) => ({
+        id: s.id, // id dari tabel SubKoordinatorBidang
+        userId: s.userId,
+        nama: s.nama,
+        email: s.user?.email || null,
+        bidang: s.bidang ? { id: s.bidang.id, nama: s.bidang.nama } : null,
+      }));
+
+      return res.status(200).json({
+        status: true,
+        message: 'Data semua sub koordinator berhasil diambil',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // GET sub koordinator by ID (sub.id)
+  getSubkoorbidById: async (req, res, next) => {
+    try {
+      const { id } = req.params;
       const sub = await prisma.subKoordinatorBidang.findUnique({
-        where: { userId },
+        where: { id },
+        include: {
+          user: { select: { id: true, email: true } },
+          bidang: { select: { id: true, nama: true } },
+        },
       });
 
       if (!sub) {
         return res.status(404).json({
           status: false,
-          message: 'Data sub koordinator tidak ditemukan',
+          message: 'Sub koordinator tidak ditemukan',
           data: null,
         });
       }
 
-      // Tidak boleh mengubah bidang
-      if (bidangId && bidangId !== sub.bidangId) {
-        return res.status(400).json({
+      const result = {
+        id: sub.id,
+        userId: sub.userId,
+        nama: sub.nama,
+        email: sub.user?.email || null,
+        bidang: sub.bidang
+          ? { id: sub.bidang.id, nama: sub.bidang.nama }
+          : null,
+      };
+
+      return res.status(200).json({
+        status: true,
+        message: 'Detail sub koordinator berhasil diambil',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // UPDATE sub koordinator (admin bisa update siapa saja, sub koor hanya bisa update dirinya)
+  updateProfileSubKoordinator: async (req, res, next) => {
+    try {
+      const { id } = req.params; // id = sub.id (SubKoordinatorBidang.id)
+      const { nama, email, password, bidangId } = req.body;
+      const requester = req.user; // dari middleware restrict (decoded token contains id and role)
+
+      // Cari sub koordinator by id
+      const sub = await prisma.subKoordinatorBidang.findUnique({
+        where: { id },
+        include: { user: true, bidang: true },
+      });
+
+      if (!sub) {
+        return res.status(404).json({
           status: false,
-          message: 'Tidak diperbolehkan mengubah bidang',
+          message: 'Sub koordinator tidak ditemukan',
           data: null,
         });
       }
 
-      // Validasi email jika diubah
-      if (email && email !== user.email) {
+      // Hak akses:
+      // - admin => boleh update siapa saja
+      // - sub_koordinator_bidang => hanya boleh update dirinya sendiri (requester.id === sub.userId)
+      if (requester.role === 'admin') {
+        // ok
+      } else if (requester.role === 'sub_koordinator_bidang') {
+        if (requester.id !== sub.userId) {
+          return res.status(403).json({
+            status: false,
+            message: 'Tidak boleh mengubah data sub koordinator lain',
+            data: null,
+          });
+        }
+      } else {
+        return res
+          .status(403)
+          .json({ status: false, message: 'Akses ditolak', data: null });
+      }
+
+      // Validasi email unik jika diubah
+      if (email && email !== sub.user.email) {
         const emailExist = await prisma.user.findUnique({ where: { email } });
         if (emailExist) {
           return res.status(409).json({
@@ -52,75 +189,72 @@ module.exports = {
         }
       }
 
-      // Update data user
+      // Update user (email, password) using sub.userId
       await prisma.user.update({
-        where: { id: userId },
+        where: { id: sub.userId },
         data: {
-          email: email || user.email,
-          password: password ? await bcrypt.hash(password, 10) : user.password,
+          email: email || sub.user.email,
+          password: password
+            ? await bcrypt.hash(password, 10)
+            : sub.user.password,
         },
       });
 
-      // Update data sub koordinator (hanya nama)
+      // Update sub koordinator (nama, bidang jika admin)
       const updated = await prisma.subKoordinatorBidang.update({
-        where: { userId },
+        where: { id },
         data: {
           nama: nama || sub.nama,
+          bidangId:
+            requester.role === 'admin'
+              ? bidangId || sub.bidangId
+              : sub.bidangId,
         },
-        include: {
-          bidang: true,
-          user: true,
-        },
+        include: { bidang: true, user: true },
       });
+
+      const result = {
+        id: updated.id,
+        userId: updated.userId,
+        nama: updated.nama,
+        email: updated.user?.email || null,
+        bidang: updated.bidang
+          ? { id: updated.bidang.id, nama: updated.bidang.nama }
+          : null,
+      };
 
       return res.status(200).json({
         status: true,
         message: 'Profil sub koordinator berhasil diperbarui',
-        data: updated,
+        data: result,
       });
     } catch (error) {
       next(error);
     }
   },
 
-  updateKuotaBidang: async (req, res, next) => {
+  // DELETE subkoordinator by sub.id
+  deleteSubkoorbidById: async (req, res, next) => {
     try {
-      const userId = req.user.id; // dari token login
-      const { kuota } = req.body;
-
-      if (kuota == null || isNaN(kuota) || kuota < 0) {
-        return res.status(400).json({
+      const { id } = req.params;
+      const sub = await prisma.subKoordinatorBidang.findUnique({
+        where: { id },
+      });
+      if (!sub) {
+        return res.status(404).json({
           status: false,
-          message: 'Kuota harus berupa angka dan tidak boleh negatif',
+          message: 'Sub koordinator tidak ditemukan',
           data: null,
         });
       }
 
-      // Cari data sub koordinator dan bidangnya
-      const subKoordinator = await prisma.subKoordinatorBidang.findUnique({
-        where: { userId },
-      });
-
-      if (!subKoordinator) {
-        return res.status(403).json({
-          status: false,
-          message: 'Akses ditolak. Anda bukan sub koordinator bidang.',
-          data: null,
-        });
-      }
-
-      const bidangId = subKoordinator.bidangId;
-
-      // Update kuota hanya pada bidang miliknya
-      const updatedBidang = await prisma.kuotaBidang.update({
-        where: { id: bidangId },
-        data: { kuota: parseInt(kuota) },
-      });
+      // Hapus user (cascade akan hapus subKoordinator record jika onDelete Cascade di schema)
+      await prisma.user.delete({ where: { id: sub.userId } });
 
       return res.status(200).json({
         status: true,
-        message: 'Kuota magang berhasil diperbarui',
-        data: updatedBidang,
+        message: 'Sub koordinator berhasil dihapus',
+        data: { id: sub.id, userId: sub.userId },
       });
     } catch (error) {
       next(error);
