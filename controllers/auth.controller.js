@@ -3,6 +3,9 @@ const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET_KEY;
+const ejs = require('ejs');
+const path = require('path');
+const sendMail = require('../utils/sendEmail');
 
 module.exports = {
   register: async (req, res, next) => {
@@ -19,10 +22,19 @@ module.exports = {
         instansi,
         jurusan,
         alamat,
-        pasFoto,
       } = req.body;
 
       const pathFoto = req.file?.path;
+
+      let parsedTglLahir = null;
+      if (tglLahir) {
+        parsedTglLahir = new Date(tglLahir); // ✅ convert dari string ke Date
+        if (isNaN(parsedTglLahir)) {
+          return res.status(400).json({
+            message: 'Format tanggal lahir tidak valid (gunakan YYYY-MM-DD)',
+          });
+        }
+      }
 
       // Validasi input
       if (
@@ -36,7 +48,7 @@ module.exports = {
         !instansi ||
         !jurusan ||
         !alamat ||
-        !pasFoto
+        !pathFoto
       ) {
         return res.status(400).json({
           status: false,
@@ -72,7 +84,7 @@ module.exports = {
         data: {
           userId: newUser.id,
           namaLengkap,
-          tglLahir,
+          tglLahir: parsedTglLahir,
           noTelepon,
           nik,
           nimNis,
@@ -84,13 +96,32 @@ module.exports = {
         },
       });
 
+      // Render EJS template
+      const htmlEmail = await ejs.renderFile(
+        path.join(__dirname, '../views/registerSuccess.ejs'),
+        { namaLengkap }
+      );
+
+      // Kirim email ke user
+      await sendMail({
+        from: process.env.SENDER_GMAIL,
+        to: email,
+        subject: 'Registrasi Berhasil - SIMAGANG Diskominfo Sidoarjo',
+        html: htmlEmail,
+      });
+
       return res.status(201).json({
         status: true,
         message: 'Registrasi berhasil. Menunggu persetujuan admin.',
         data: user,
       });
     } catch (error) {
-      next(error);
+      console.error(error);
+      return res.status(500).json({
+        status: false,
+        message: 'Terjadi kesalahan pada server',
+        error: error.message,
+      });
     }
   },
 
@@ -107,7 +138,12 @@ module.exports = {
       }
 
       // Cari user berdasarkan email
-      const user = await prisma.user.findUnique({ where: { email } });
+      const user = await prisma.user.findUnique({
+        where: { email },
+        include: {
+          pesertaMagang: true,
+        },
+      });
 
       if (!user) {
         return res.status(401).json({
@@ -147,6 +183,8 @@ module.exports = {
             id: user.id,
             email: user.email,
             role: user.role,
+            namaLengkap: user.pesertaMagang?.namaLengkap || null,
+            foto: user.pesertaMagang?.pasFoto || null,
           },
         },
       });
@@ -154,6 +192,4 @@ module.exports = {
       next(error);
     }
   },
-
-  
 };

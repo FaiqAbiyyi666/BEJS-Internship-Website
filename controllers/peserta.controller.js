@@ -5,6 +5,44 @@ const sendEmail = require('../utils/sendEmail');
 const getRenderedHtml = require('../utils/getRenderedHtml');
 
 module.exports = {
+  getProfileById: async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const user = await prisma.user.findUnique({
+        where: { id },
+        include: { pesertaMagang: true },
+      });
+
+      if (!user) {
+        return res
+          .status(404)
+          .json({ status: false, message: 'User tidak ditemukan' });
+      }
+
+      return res.json({
+        status: true,
+        data: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          namaLengkap: user.pesertaMagang?.namaLengkap || null,
+          nimNis: user.pesertaMagang?.nimNis || null, // ✅ field sesuai schema
+          jurusan: user.pesertaMagang?.jurusan || null,
+          instansi: user.pesertaMagang?.instansi || null, // ✅ field sesuai schema
+          tglLahir: user.pesertaMagang?.tglLahir || null,
+          noTelepon: user.pesertaMagang?.noTelepon || null,
+          nik: user.pesertaMagang?.nik || null,
+          alamat: user.pesertaMagang?.alamat || null,
+          foto: user.pesertaMagang?.pasFoto || null,
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ status: false, message: 'Server error' });
+    }
+  },
+
   updateUserProfile: async (req, res, next) => {
     try {
       const { id } = req.user;

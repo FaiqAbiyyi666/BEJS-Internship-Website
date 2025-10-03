@@ -4,10 +4,17 @@ const cookieParser = require('cookie-parser');
 const logger = require('morgan');
 const createError = require('http-errors');
 const path = require('path');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
+app.use(
+  cors({
+    origin: 'http://localhost:5173',
+    methods: ['CREATE', 'GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
+  })
+);
 // Middleware umum
 app.use(logger('dev'));
 app.use(express.json());

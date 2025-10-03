@@ -1,6 +1,9 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
+const sendEmail = require('../utils/sendEmail');
+const ejs = require('ejs');
+const path = require('path');
 
 module.exports = {
   createAdmin: async (req, res, next) => {
@@ -165,7 +168,6 @@ module.exports = {
     try {
       const { id } = req.params;
 
-      // Cari peserta magang berdasarkan ID
       const peserta = await prisma.pesertaMagang.findUnique({
         where: { id },
         include: { user: true },
@@ -175,25 +177,23 @@ module.exports = {
         return res.status(404).json({
           status: false,
           message: 'Peserta magang tidak ditemukan',
-          data: null,
         });
       }
 
-      if (peserta.isApproved) {
+      if (peserta.status === 'APPROVED') {
         return res.status(400).json({
           status: false,
           message: 'Peserta sudah disetujui sebelumnya',
-          data: null,
         });
       }
 
-      // Setujui peserta magang
+      // Update status jadi APPROVED
       await prisma.pesertaMagang.update({
         where: { id },
-        data: { isApproved: true },
+        data: { status: 'APPROVED' },
       });
 
-      // Kirim notifikasi ke user
+      // Simpan notifikasi
       await prisma.notifikasi.create({
         data: {
           userId: peserta.userId,
@@ -203,13 +203,139 @@ module.exports = {
         },
       });
 
+      // Render template approveAccount.ejs
+      const templatePath = path.join(__dirname, '../views/approveAccount.ejs');
+      const html = await ejs.renderFile(templatePath, {
+        nama: peserta.namaLengkap,
+        email: peserta.user.email,
+      });
+
+      // Kirim email
+      await sendEmail({
+        from: process.env.EMAIL_USER,
+        to: peserta.user.email,
+        subject: 'Registrasi Magang Disetujui',
+        html, // pakai template yang dirender
+      });
+
       return res.status(200).json({
         status: true,
-        message: 'Peserta magang berhasil disetujui',
+        message: 'Peserta magang berhasil disetujui & email terkirim',
         data: { id: peserta.id, nama: peserta.namaLengkap },
       });
     } catch (error) {
       next(error);
+    }
+  },
+
+  rejectPesertaMagang: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+
+      const peserta = await prisma.pesertaMagang.findUnique({
+        where: { id },
+        include: { user: true },
+      });
+
+      if (!peserta) {
+        return res.status(404).json({
+          status: false,
+          message: 'Peserta magang tidak ditemukan',
+        });
+      }
+
+      if (peserta.status === 'REJECTED') {
+        return res.status(400).json({
+          status: false,
+          message: 'Peserta sudah ditolak sebelumnya',
+        });
+      }
+
+      // Update status jadi REJECTED
+      await prisma.pesertaMagang.update({
+        where: { id },
+        data: { status: 'REJECTED' },
+      });
+
+      // Simpan notifikasi
+      await prisma.notifikasi.create({
+        data: {
+          userId: peserta.userId,
+          tipe: 'registrasi',
+          judul: 'Registrasi Ditolak',
+          pesan:
+            'Maaf, registrasi akun magang Kamu ditolak. Silakan hubungi admin.',
+        },
+      });
+
+      // Render template rejectAccount.ejs
+      const templatePath = path.join(__dirname, '../views/rejectAccount.ejs');
+      const html = await ejs.renderFile(templatePath, {
+        nama: peserta.namaLengkap,
+        email: peserta.user.email,
+      });
+
+      // Kirim email
+      await sendEmail({
+        from: process.env.EMAIL_USER,
+        to: peserta.user.email,
+        subject: 'Registrasi Magang Ditolak',
+        html, // pakai template yang dirender
+      });
+
+      return res.status(200).json({
+        status: true,
+        message: 'Peserta magang berhasil ditolak & email terkirim',
+        data: { id: peserta.id, nama: peserta.namaLengkap },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // ✅ Daftar peserta magang dengan status PENDING
+  getPendingPesertaMagang: async (req, res) => {
+    try {
+      const pendingPeserta = await prisma.pesertaMagang.findMany({
+        where: { status: 'PENDING' },
+        orderBy: { createdAt: 'desc' }, // urutkan dari terbaru
+        include: { user: true },
+      });
+
+      res.json({
+        success: true,
+        message: 'Daftar peserta magang menunggu persetujuan',
+        data: pendingPeserta,
+      });
+    } catch (error) {
+      console.error('Error getPendingPesertaMagang:', error);
+      res
+        .status(500)
+        .json({ success: false, message: 'Internal server error' });
+    }
+  },
+
+  // ✅ History peserta magang (APPROVED & REJECTED)
+  getHistoryPesertaMagang: async (req, res) => {
+    try {
+      const historyPeserta = await prisma.pesertaMagang.findMany({
+        where: {
+          OR: [{ status: 'APPROVED' }, { status: 'REJECTED' }],
+        },
+        orderBy: { updatedAt: 'desc' },
+        include: { user: true },
+      });
+
+      res.json({
+        success: true,
+        message: 'History persetujuan peserta magang',
+        data: historyPeserta,
+      });
+    } catch (error) {
+      console.error('Error getHistoryPesertaMagang:', error);
+      res
+        .status(500)
+        .json({ success: false, message: 'Internal server error' });
     }
   },
 

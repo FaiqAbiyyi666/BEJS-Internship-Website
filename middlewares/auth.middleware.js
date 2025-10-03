@@ -30,31 +30,64 @@ module.exports = {
       next(error);
     }
   },
+
+  // ✅ hanya admin
   isAdmin: (req, res, next) => {
     if (req.user.role !== 'admin') {
       return res.status(403).json({
         status: false,
-        message: 'You are not authorized to access this resource',
+        message: 'You are not authorized as Admin',
         data: null,
       });
     }
     next();
   },
-  isUser: (req, res, next) => {
-    if (req.user.role !== 'USER') {
+
+  // ✅ hanya peserta magang
+  isPesertaMagang: (req, res, next) => {
+    if (req.user.role !== 'peserta_magang') {
       return res.status(403).json({
         status: false,
-        message: 'You are not authorized to access this resource',
+        message: 'You are not authorized as Peserta Magang',
         data: null,
       });
     }
     next();
   },
-  isUserOrAdmin: (req, res, next) => {
-    if (req.user.role !== 'USER' && req.user.role !== 'ADMIN') {
+
+  // ✅ hanya sub koordinator magang
+  isSubKoordinatorMagang: (req, res, next) => {
+    if (req.user.role !== 'sub_koordinator_magang') {
       return res.status(403).json({
         status: false,
-        message: 'You are not authorized to access this resource',
+        message: 'You are not authorized as Sub Koordinator Magang',
+        data: null,
+      });
+    }
+    next();
+  },
+
+  // ✅ admin atau peserta magang
+  isAdminOrPeserta: (req, res, next) => {
+    if (req.user.role !== 'admin' && req.user.role !== 'peserta_magang') {
+      return res.status(403).json({
+        status: false,
+        message: 'Only Admin or Peserta Magang can access this resource',
+        data: null,
+      });
+    }
+    next();
+  },
+
+  // ✅ admin atau sub koordinator
+  isAdminOrSubKoordinator: (req, res, next) => {
+    if (
+      req.user.role !== 'admin' &&
+      req.user.role !== 'sub_koordinator_magang'
+    ) {
+      return res.status(403).json({
+        status: false,
+        message: 'Only Admin or Sub Koordinator can access this resource',
         data: null,
       });
     }
