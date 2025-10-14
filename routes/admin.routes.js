@@ -22,7 +22,7 @@ router.get(
 );
 
 // Admin menyetujui peserta magang
-router.put(
+router.patch(
   '/peserta-magang/:id/approve',
   restrict,
   isAdmin,
@@ -30,7 +30,7 @@ router.put(
 );
 
 // Admin menolak peserta magang
-router.put(
+router.patch(
   '/peserta-magang/:id/reject',
   restrict,
   isAdmin,

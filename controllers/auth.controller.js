@@ -24,11 +24,11 @@ module.exports = {
         alamat,
       } = req.body;
 
-      const pathFoto = req.file?.path;
+      const pasFotoUrl = req.body.pas_foto_url;
 
       let parsedTglLahir = null;
       if (tglLahir) {
-        parsedTglLahir = new Date(tglLahir); // ✅ convert dari string ke Date
+        parsedTglLahir = new Date(tglLahir);
         if (isNaN(parsedTglLahir)) {
           return res.status(400).json({
             message: 'Format tanggal lahir tidak valid (gunakan YYYY-MM-DD)',
@@ -48,11 +48,11 @@ module.exports = {
         !instansi ||
         !jurusan ||
         !alamat ||
-        !pathFoto
+        !pasFotoUrl
       ) {
         return res.status(400).json({
           status: false,
-          message: 'Semua field wajib diisi',
+          message: 'Semua field wajib diisi, termasuk pas foto',
           data: null,
         });
       }
@@ -79,7 +79,7 @@ module.exports = {
         },
       });
 
-      // Buat data peserta magang, dengan status belum disetujui
+      // Buat data peserta magang, dengan status PENDING
       let user = await prisma.pesertaMagang.create({
         data: {
           userId: newUser.id,
@@ -91,8 +91,10 @@ module.exports = {
           instansi,
           jurusan,
           alamat,
-          isApproved: false, // wajib persetujuan admin
-          pasFoto: pathFoto || '',
+          // --- PERBAIKAN ---
+          // GANTI 'isApproved: false' MENJADI 'status: 'PENDING''
+          status: 'PENDING', // Set status awal sebagai PENDING
+          pasFoto: pasFotoUrl,
         },
       });
 
@@ -116,10 +118,12 @@ module.exports = {
         data: user,
       });
     } catch (error) {
-      console.error(error);
+      // Log error asli ke konsol server untuk debugging
+      console.error('REGISTRATION ERROR:', error);
       return res.status(500).json({
         status: false,
         message: 'Terjadi kesalahan pada server',
+        // Kirim pesan error asli ke front-end (opsional, bagus untuk development)
         error: error.message,
       });
     }

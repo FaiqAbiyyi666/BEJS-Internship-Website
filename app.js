@@ -8,13 +8,15 @@ const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-app.use(
-  cors({
-    origin: 'http://localhost:5173',
-    methods: ['CREATE', 'GET', 'POST', 'PUT', 'DELETE'],
-    credentials: true,
-  })
-);
+const corsOptions = {
+  origin: 'http://localhost:5173', // Ganti jika port frontend Anda berbeda
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], // Gunakan metode standar HTTP
+  allowedHeaders: ['Content-Type', 'Authorization'], // ✅ IZINKAN HEADER INI
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+
 // Middleware umum
 app.use(logger('dev'));
 app.use(express.json());

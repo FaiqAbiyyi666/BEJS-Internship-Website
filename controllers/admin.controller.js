@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
-const sendEmail = require('../utils/sendEmail');
+const sendMail = require('../utils/sendEmail');
 const ejs = require('ejs');
 const path = require('path');
 
@@ -58,8 +58,8 @@ module.exports = {
       const { id } = req.params;
 
       const peserta = await prisma.pesertaMagang.findUnique({
-        where: { id },
-        include: { user: true },
+        where: { id: id },
+        include: { user: true }, // Untuk mendapatkan email dari tabel User
       });
 
       if (!peserta) {
@@ -69,47 +69,50 @@ module.exports = {
         });
       }
 
-      if (peserta.status === 'APPROVED') {
+      // Pengecekan status yang lebih baik, agar tidak bisa di-approve/reject jika statusnya bukan PENDING
+      if (peserta.status !== 'PENDING') {
         return res.status(400).json({
           status: false,
-          message: 'Peserta sudah disetujui sebelumnya',
+          message: `Peserta sudah dalam status ${peserta.status}, tidak dapat diubah.`,
         });
       }
 
       // Update status jadi APPROVED
       await prisma.pesertaMagang.update({
-        where: { id },
+        where: { id: id },
         data: { status: 'APPROVED' },
       });
 
-      // Simpan notifikasi
+      // Simpan notifikasi ke database
       await prisma.notifikasi.create({
         data: {
           userId: peserta.userId,
           tipe: 'registrasi',
           judul: 'Registrasi Disetujui',
-          pesan: 'Selamat! Registrasi akun magang Kamu telah disetujui.',
+          pesan:
+            'Selamat! Registrasi akun magang Kamu telah disetujui oleh admin.',
         },
       });
 
       // Render template approveAccount.ejs
       const templatePath = path.join(__dirname, '../views/approveAccount.ejs');
-      const html = await ejs.renderFile(templatePath, {
-        nama: peserta.namaLengkap,
+      const htmlEmail = await ejs.renderFile(templatePath, {
+        namaLengkap: peserta.namaLengkap,
         email: peserta.user.email,
       });
 
-      // Kirim email
-      await sendEmail({
-        from: process.env.EMAIL_USER,
+      // Kirim email notifikasi
+      await sendMail({
+        from: process.env.SENDER_GMAIL, // Gunakan variabel env Anda
         to: peserta.user.email,
-        subject: 'Registrasi Magang Disetujui',
-        html, // pakai template yang dirender
+        subject: 'Registrasi Magang Disetujui - SIMAGANG Diskominfo Sidoarjo',
+        html: htmlEmail, // pakai template yang sudah dirender
       });
 
       return res.status(200).json({
         status: true,
-        message: 'Peserta magang berhasil disetujui & email terkirim',
+        message:
+          'Peserta magang berhasil disetujui & email notifikasi terkirim.',
         data: { id: peserta.id, nama: peserta.namaLengkap },
       });
     } catch (error) {
@@ -122,8 +125,8 @@ module.exports = {
       const { id } = req.params;
 
       const peserta = await prisma.pesertaMagang.findUnique({
-        where: { id },
-        include: { user: true },
+        where: { id: id },
+        include: { user: true }, // Untuk mendapatkan email dari tabel User
       });
 
       if (!peserta) {
@@ -133,48 +136,50 @@ module.exports = {
         });
       }
 
-      if (peserta.status === 'REJECTED') {
+      // PERBAIKAN: Pengecekan status yang lebih baik.
+      // Mencegah aksi jika status bukan 'PENDING' (misalnya sudah di-approve atau di-reject).
+      if (peserta.status !== 'PENDING') {
         return res.status(400).json({
           status: false,
-          message: 'Peserta sudah ditolak sebelumnya',
+          message: `Peserta sudah dalam status ${peserta.status}, tidak dapat diubah.`,
         });
       }
 
       // Update status jadi REJECTED
       await prisma.pesertaMagang.update({
-        where: { id },
+        where: { id: id },
         data: { status: 'REJECTED' },
       });
 
-      // Simpan notifikasi
+      // Simpan notifikasi (pesan generik sesuai kode Anda)
       await prisma.notifikasi.create({
         data: {
           userId: peserta.userId,
           tipe: 'registrasi',
           judul: 'Registrasi Ditolak',
           pesan:
-            'Maaf, registrasi akun magang Kamu ditolak. Silakan hubungi admin.',
+            'Maaf, registrasi akun magang Kamu ditolak. Silakan hubungi admin untuk informasi lebih lanjut.',
         },
       });
 
-      // Render template rejectAccount.ejs
+      // Render template rejectAccount.ejs (mengirim nama dan email, sesuai kode Anda)
       const templatePath = path.join(__dirname, '../views/rejectAccount.ejs');
-      const html = await ejs.renderFile(templatePath, {
-        nama: peserta.namaLengkap,
+      const htmlEmail = await ejs.renderFile(templatePath, {
+        namaLengkap: peserta.namaLengkap,
         email: peserta.user.email,
       });
 
-      // Kirim email
-      await sendEmail({
-        from: process.env.EMAIL_USER,
+      // Kirim email notifikasi penolakan
+      await sendMail({
+        from: process.env.SENDER_GMAIL, // Disesuaikan agar konsisten
         to: peserta.user.email,
-        subject: 'Registrasi Magang Ditolak',
-        html, // pakai template yang dirender
+        subject: 'Registrasi Magang Ditolak - SIMAGANG Diskominfo Sidoarjo',
+        html: htmlEmail, // pakai template yang sudah dirender
       });
 
       return res.status(200).json({
         status: true,
-        message: 'Peserta magang berhasil ditolak & email terkirim',
+        message: 'Peserta magang berhasil ditolak & email notifikasi terkirim.',
         data: { id: peserta.id, nama: peserta.namaLengkap },
       });
     } catch (error) {
