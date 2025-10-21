@@ -6,6 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET_KEY;
 const ejs = require('ejs');
 const path = require('path');
 const sendMail = require('../utils/sendEmail');
+const getRenderedHtml = require('../utils/getRenderedHtml');
 
 module.exports = {
   register: async (req, res, next) => {
@@ -191,6 +192,127 @@ module.exports = {
             foto: user.pesertaMagang?.pasFoto || null,
           },
         },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  sendResetPasswordEmail: async (req, res, next) => {
+    try {
+      const { email } = req.body;
+      if (!email) {
+        return res.status(400).json({
+          status: false,
+          message: 'Email wajib diisi',
+          data: null,
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { email },
+        select: {
+          id: true,
+          pesertaMagang: {
+            // Ambil relasi pesertaMagang
+            select: {
+              namaLengkap: true, // Ambil nama lengkapnya
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          status: false,
+          message: 'Email tidak ditemukan',
+          data: null,
+        });
+      }
+
+      const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET_KEY, {
+        expiresIn: '10m',
+      });
+
+      const resetUrl = `${process.env.CLIENT_BASE_URL}/reset-password?token=${token}`;
+      const html = getRenderedHtml('resetPasswordEmail', {
+        name: user.pesertaMagang?.namaLengkap || email, // Kirim nama ke EJS
+        resetPasswordUrl: resetUrl,
+      });
+
+      await sendMail({
+        to: email,
+        subject: 'Magang Diskominfo Sidoarjo - Konfirmasi Reset Password',
+        html,
+      });
+
+      res.status(200).json({
+        status: true,
+        message: `Email reset password telah dikirim ke ${email}`,
+        data: null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  resetPassword: async (req, res, next) => {
+    try {
+      const { token } = req.query;
+      const { password } = req.body;
+
+      if (!token) {
+        return res.status(400).json({
+          status: false,
+          message: 'Token tidak ditemukan',
+          data: null,
+        });
+      }
+
+      if (!password || password.length < 6) {
+        return res.status(400).json({
+          status: false,
+          message: 'Password minimal 6 karakter',
+          data: null,
+        });
+      }
+
+      jwt.verify(token, process.env.JWT_SECRET_KEY, async (err, decoded) => {
+        if (err) {
+          return res.status(400).json({
+            status: false,
+            message:
+              err.name === 'TokenExpiredError'
+                ? 'Token sudah kadaluarsa'
+                : `Token tidak valid: ${err.message}`,
+            data: null,
+          });
+        }
+
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.id },
+        });
+        if (!user) {
+          return res.status(404).json({
+            status: false,
+            message: 'Pengguna tidak ditemukan',
+            data: null,
+          });
+        }
+
+        const bcrypt = require('bcryptjs');
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { password: hashedPassword },
+        });
+
+        return res.status(200).json({
+          status: true,
+          message: 'Password berhasil diubah',
+          data: null,
+        });
       });
     } catch (error) {
       next(error);

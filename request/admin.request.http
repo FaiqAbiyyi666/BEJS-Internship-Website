@@ -3,8 +3,8 @@ POST http://localhost:3000/api/admin/create-admin
 Content-Type: application/json
 
 {
-  "email": "abiyyiaja@gmail.com",
-  "password": "lama12345"
+  "email": "magangdiskominfo.sidoarjokab@gmail.com",
+  "password": "sidoarjobersihkkn1859"
 }
 
 ### Create SubKoordinatorBidang Account
@@ -28,9 +28,9 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZkY2ViNjZmL
 ### Membuat bidang baru
 POST http://localhost:3000/api/admin/bidang/create-bidang
 Content-Type: application/json
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZkY2ViNjZmLTQyODEtNDE5YS1hMTIzLWY3OTg3ZmE2NjI1MiIsImVtYWlsIjoiYWJpeXlpYWphQGdtYWlsLmNvbSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc1MTA1MDU1NCwiZXhwIjoxNzUxMTM2OTU0fQ.q6C9p6j08EId2D5e3OZUEFhyA_d3az6oVZsDS3yvh3o
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Ijg5NDQ1OTlhLTRhNjYtNGNjOS1hMWIxLTRkMmM0ZjM4YWQ5YyIsImVtYWlsIjoiYWJpeXlpYWphQGdtYWlsLmNvbSIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc2MTAxODA1NiwiZXhwIjoxNzYxMTA0NDU2fQ.m8K5z-jOGt4OJxAY433eLxiq8bDkB0Wbhnqvi9PHXzw
 
 {
-  "nama": "Statistik",
+  "nama": "Infrastruktur dan Keamanan TIK",
   "kuota": 10
 }

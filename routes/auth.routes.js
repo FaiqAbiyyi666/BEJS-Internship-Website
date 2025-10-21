@@ -12,4 +12,9 @@ router.post('/register', uploadPasFoto, auth.register);
 // router.post('/pengajuan', uploadBerkasAjuan, auth.);
 router.post('/login', auth.login);
 
+// Rute untuk kirim email
+router.post('/forgot-password', auth.sendResetPasswordEmail);
+// Rute untuk reset password (menerima token dari query)
+router.post('/reset-password', auth.resetPassword);
+
 module.exports = router;
