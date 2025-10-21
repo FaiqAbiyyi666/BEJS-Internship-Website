@@ -1,6 +1,9 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
+const sendMail = require('../utils/sendEmail');
+const ejs = require('ejs');
+const path = require('path');
 
 module.exports = {
   createAdmin: async (req, res, next) => {
@@ -50,162 +53,66 @@ module.exports = {
     }
   },
 
-  createSubKoordinator: async (req, res, next) => {
-    try {
-      const { email, password, nama, bidangId } = req.body;
-
-      if (!email || !password || !nama || !bidangId) {
-        return res.status(400).json({
-          status: false,
-          message: 'Email, password, nama, dan bidangId wajib diisi',
-          data: null,
-        });
-      }
-
-      const exist = await prisma.user.findUnique({ where: { email } });
-      if (exist) {
-        return res.status(409).json({
-          status: false,
-          message: 'Email sudah digunakan',
-          data: null,
-        });
-      }
-
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      const user = await prisma.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          role: 'sub_koordinator_bidang',
-        },
-      });
-
-      const sub = await prisma.subKoordinatorBidang.create({
-        data: {
-          userId: user.id,
-          nama,
-          bidangId,
-        },
-      });
-
-      res.status(201).json({
-        status: true,
-        message: 'Akun Sub Koordinator berhasil dibuat',
-        data: { user, sub },
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  updateSubKoordinator: async (req, res, next) => {
-    try {
-      const { id } = req.params;
-      const { email, password, nama, bidangId } = req.body;
-
-      // Cari data sub koordinator
-      const sub = await prisma.subKoordinatorBidang.findUnique({
-        where: { id },
-        include: { user: true },
-      });
-
-      if (!sub) {
-        return res.status(404).json({
-          status: false,
-          message: 'Sub Koordinator tidak ditemukan',
-          data: null,
-        });
-      }
-
-      // Cek apakah email baru sudah digunakan user lain
-      if (email && email !== sub.user.email) {
-        const emailUsed = await prisma.user.findUnique({ where: { email } });
-        if (emailUsed) {
-          return res.status(409).json({
-            status: false,
-            message: 'Email sudah digunakan oleh akun lain',
-            data: null,
-          });
-        }
-      }
-
-      // Update data user (jika ada perubahan)
-      await prisma.user.update({
-        where: { id: sub.userId },
-        data: {
-          email: email || sub.user.email,
-          password: password
-            ? await bcrypt.hash(password, 10)
-            : sub.user.password,
-        },
-      });
-
-      // Update data sub koordinator
-      const updatedSub = await prisma.subKoordinatorBidang.update({
-        where: { id },
-        data: {
-          nama: nama || sub.nama,
-          bidangId: bidangId || sub.bidangId,
-        },
-        include: { user: true, bidang: true },
-      });
-
-      return res.status(200).json({
-        status: true,
-        message: 'Akun Sub Koordinator berhasil diperbarui',
-        data: updatedSub,
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
   approvePesertaMagang: async (req, res, next) => {
     try {
       const { id } = req.params;
 
-      // Cari peserta magang berdasarkan ID
       const peserta = await prisma.pesertaMagang.findUnique({
-        where: { id },
-        include: { user: true },
+        where: { id: id },
+        include: { user: true }, // Untuk mendapatkan email dari tabel User
       });
 
       if (!peserta) {
         return res.status(404).json({
           status: false,
           message: 'Peserta magang tidak ditemukan',
-          data: null,
         });
       }
 
-      if (peserta.isApproved) {
+      // Pengecekan status yang lebih baik, agar tidak bisa di-approve/reject jika statusnya bukan PENDING
+      if (peserta.status !== 'PENDING') {
         return res.status(400).json({
           status: false,
-          message: 'Peserta sudah disetujui sebelumnya',
-          data: null,
+          message: `Peserta sudah dalam status ${peserta.status}, tidak dapat diubah.`,
         });
       }
 
-      // Setujui peserta magang
+      // Update status jadi APPROVED
       await prisma.pesertaMagang.update({
-        where: { id },
-        data: { isApproved: true },
+        where: { id: id },
+        data: { status: 'APPROVED' },
       });
 
-      // Kirim notifikasi ke user
+      // Simpan notifikasi ke database
       await prisma.notifikasi.create({
         data: {
           userId: peserta.userId,
           tipe: 'registrasi',
           judul: 'Registrasi Disetujui',
-          pesan: 'Selamat! Registrasi akun magang Kamu telah disetujui.',
+          pesan:
+            'Selamat! Registrasi akun magang Kamu telah disetujui oleh admin.',
         },
+      });
+
+      // Render template approveAccount.ejs
+      const templatePath = path.join(__dirname, '../views/approveAccount.ejs');
+      const htmlEmail = await ejs.renderFile(templatePath, {
+        namaLengkap: peserta.namaLengkap,
+        email: peserta.user.email,
+      });
+
+      // Kirim email notifikasi
+      await sendMail({
+        from: process.env.SENDER_GMAIL, // Gunakan variabel env Anda
+        to: peserta.user.email,
+        subject: 'Registrasi Magang Disetujui - SIMAGANG Diskominfo Sidoarjo',
+        html: htmlEmail, // pakai template yang sudah dirender
       });
 
       return res.status(200).json({
         status: true,
-        message: 'Peserta magang berhasil disetujui',
+        message:
+          'Peserta magang berhasil disetujui & email notifikasi terkirim.',
         data: { id: peserta.id, nama: peserta.namaLengkap },
       });
     } catch (error) {
@@ -213,87 +120,116 @@ module.exports = {
     }
   },
 
-  createKuotaBidang: async (req, res, next) => {
+  rejectPesertaMagang: async (req, res, next) => {
     try {
-      const { nama, kuota } = req.body;
+      const { id } = req.params;
 
-      // Validasi input
-      if (!nama || kuota == null) {
+      const peserta = await prisma.pesertaMagang.findUnique({
+        where: { id: id },
+        include: { user: true }, // Untuk mendapatkan email dari tabel User
+      });
+
+      if (!peserta) {
+        return res.status(404).json({
+          status: false,
+          message: 'Peserta magang tidak ditemukan',
+        });
+      }
+
+      // PERBAIKAN: Pengecekan status yang lebih baik.
+      // Mencegah aksi jika status bukan 'PENDING' (misalnya sudah di-approve atau di-reject).
+      if (peserta.status !== 'PENDING') {
         return res.status(400).json({
           status: false,
-          message: 'Nama dan kuota wajib diisi',
-          data: null,
+          message: `Peserta sudah dalam status ${peserta.status}, tidak dapat diubah.`,
         });
       }
 
-      // Cek apakah bidang dengan nama yang sama sudah ada
-      const existing = await prisma.kuotaBidang.findFirst({ where: { nama } });
-      if (existing) {
-        return res.status(409).json({
-          status: false,
-          message: 'Nama bidang sudah terdaftar',
-          data: null,
-        });
-      }
+      // Update status jadi REJECTED
+      await prisma.pesertaMagang.update({
+        where: { id: id },
+        data: { status: 'REJECTED' },
+      });
 
-      // Simpan ke database
-      const bidang = await prisma.kuotaBidang.create({
+      // Simpan notifikasi (pesan generik sesuai kode Anda)
+      await prisma.notifikasi.create({
         data: {
-          nama,
-          kuota: parseInt(kuota),
+          userId: peserta.userId,
+          tipe: 'registrasi',
+          judul: 'Registrasi Ditolak',
+          pesan:
+            'Maaf, registrasi akun magang Kamu ditolak. Silakan hubungi admin untuk informasi lebih lanjut.',
         },
       });
 
-      return res.status(201).json({
+      // Render template rejectAccount.ejs (mengirim nama dan email, sesuai kode Anda)
+      const templatePath = path.join(__dirname, '../views/rejectAccount.ejs');
+      const htmlEmail = await ejs.renderFile(templatePath, {
+        namaLengkap: peserta.namaLengkap,
+        email: peserta.user.email,
+      });
+
+      // Kirim email notifikasi penolakan
+      await sendMail({
+        from: process.env.SENDER_GMAIL, // Disesuaikan agar konsisten
+        to: peserta.user.email,
+        subject: 'Registrasi Magang Ditolak - SIMAGANG Diskominfo Sidoarjo',
+        html: htmlEmail, // pakai template yang sudah dirender
+      });
+
+      return res.status(200).json({
         status: true,
-        message: 'Bidang berhasil dibuat',
-        data: bidang,
+        message: 'Peserta magang berhasil ditolak & email notifikasi terkirim.',
+        data: { id: peserta.id, nama: peserta.namaLengkap },
       });
     } catch (error) {
       next(error);
     }
   },
 
-  updateKuotaBidang: async (req, res, next) => {
+  // ✅ Daftar peserta magang dengan status PENDING
+  getPendingPesertaMagang: async (req, res) => {
     try {
-      const { id } = req.params;
-      const { nama, kuota } = req.body;
-
-      // Validasi input
-      if (!nama || kuota == null) {
-        return res.status(400).json({
-          status: false,
-          message: 'Nama dan kuota wajib diisi',
-          data: null,
-        });
-      }
-
-      // Cek apakah bidang dengan ID tersebut ada
-      const existing = await prisma.kuotaBidang.findUnique({ where: { id } });
-      if (!existing) {
-        return res.status(404).json({
-          status: false,
-          message: 'Bidang tidak ditemukan',
-          data: null,
-        });
-      }
-
-      // Update bidang
-      const updated = await prisma.kuotaBidang.update({
-        where: { id },
-        data: {
-          nama,
-          kuota: parseInt(kuota),
-        },
+      const pendingPeserta = await prisma.pesertaMagang.findMany({
+        where: { status: 'PENDING' },
+        orderBy: { createdAt: 'desc' }, // urutkan dari terbaru
+        include: { user: true },
       });
 
-      return res.status(200).json({
-        status: true,
-        message: 'Kuota bidang berhasil diperbarui',
-        data: updated,
+      res.json({
+        success: true,
+        message: 'Daftar peserta magang menunggu persetujuan',
+        data: pendingPeserta,
       });
     } catch (error) {
-      next(error);
+      console.error('Error getPendingPesertaMagang:', error);
+      res
+        .status(500)
+        .json({ success: false, message: 'Internal server error' });
+    }
+  },
+
+  // ✅ History peserta magang (APPROVED & REJECTED)
+  getHistoryPesertaMagang: async (req, res) => {
+    try {
+      const historyPeserta = await prisma.pesertaMagang.findMany({
+        where: {
+          OR: [{ status: 'APPROVED' }, { status: 'REJECTED' }],
+        },
+        orderBy: { updatedAt: 'desc' },
+        include: { user: true },
+      });
+
+      res.json({
+        success: true,
+        message: 'History persetujuan peserta magang',
+        data: historyPeserta,
+      });
+    } catch (error) {
+      console.error('Error getHistoryPesertaMagang:', error);
+      res
+        .status(500)
+        .json({ success: false, message: 'Internal server error' });
     }
   },
 

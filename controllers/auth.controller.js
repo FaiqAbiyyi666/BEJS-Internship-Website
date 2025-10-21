@@ -3,6 +3,9 @@ const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET_KEY;
+const ejs = require('ejs');
+const path = require('path');
+const sendMail = require('../utils/sendEmail');
 
 module.exports = {
   register: async (req, res, next) => {
@@ -19,10 +22,19 @@ module.exports = {
         instansi,
         jurusan,
         alamat,
-        pasFoto,
       } = req.body;
 
-      const pathFoto = req.file?.path;
+      const pasFotoUrl = req.body.pas_foto_url;
+
+      let parsedTglLahir = null;
+      if (tglLahir) {
+        parsedTglLahir = new Date(tglLahir);
+        if (isNaN(parsedTglLahir)) {
+          return res.status(400).json({
+            message: 'Format tanggal lahir tidak valid (gunakan YYYY-MM-DD)',
+          });
+        }
+      }
 
       // Validasi input
       if (
@@ -36,11 +48,11 @@ module.exports = {
         !instansi ||
         !jurusan ||
         !alamat ||
-        !pasFoto
+        !pasFotoUrl
       ) {
         return res.status(400).json({
           status: false,
-          message: 'Semua field wajib diisi',
+          message: 'Semua field wajib diisi, termasuk pas foto',
           data: null,
         });
       }
@@ -67,21 +79,37 @@ module.exports = {
         },
       });
 
-      // Buat data peserta magang, dengan status belum disetujui
+      // Buat data peserta magang, dengan status PENDING
       let user = await prisma.pesertaMagang.create({
         data: {
           userId: newUser.id,
           namaLengkap,
-          tglLahir,
+          tglLahir: parsedTglLahir,
           noTelepon,
           nik,
           nimNis,
           instansi,
           jurusan,
           alamat,
-          isApproved: false, // wajib persetujuan admin
-          pasFoto: pathFoto || '',
+          // --- PERBAIKAN ---
+          // GANTI 'isApproved: false' MENJADI 'status: 'PENDING''
+          status: 'PENDING', // Set status awal sebagai PENDING
+          pasFoto: pasFotoUrl,
         },
+      });
+
+      // Render EJS template
+      const htmlEmail = await ejs.renderFile(
+        path.join(__dirname, '../views/registerSuccess.ejs'),
+        { namaLengkap }
+      );
+
+      // Kirim email ke user
+      await sendMail({
+        from: process.env.SENDER_GMAIL,
+        to: email,
+        subject: 'Registrasi Berhasil - SIMAGANG Diskominfo Sidoarjo',
+        html: htmlEmail,
       });
 
       return res.status(201).json({
@@ -90,7 +118,14 @@ module.exports = {
         data: user,
       });
     } catch (error) {
-      next(error);
+      // Log error asli ke konsol server untuk debugging
+      console.error('REGISTRATION ERROR:', error);
+      return res.status(500).json({
+        status: false,
+        message: 'Terjadi kesalahan pada server',
+        // Kirim pesan error asli ke front-end (opsional, bagus untuk development)
+        error: error.message,
+      });
     }
   },
 
@@ -107,7 +142,12 @@ module.exports = {
       }
 
       // Cari user berdasarkan email
-      const user = await prisma.user.findUnique({ where: { email } });
+      const user = await prisma.user.findUnique({
+        where: { email },
+        include: {
+          pesertaMagang: true,
+        },
+      });
 
       if (!user) {
         return res.status(401).json({
@@ -147,6 +187,8 @@ module.exports = {
             id: user.id,
             email: user.email,
             role: user.role,
+            namaLengkap: user.pesertaMagang?.namaLengkap || null,
+            foto: user.pesertaMagang?.pasFoto || null,
           },
         },
       });
@@ -154,6 +196,4 @@ module.exports = {
       next(error);
     }
   },
-
-  
 };

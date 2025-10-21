@@ -5,10 +5,92 @@ const sendEmail = require('../utils/sendEmail');
 const getRenderedHtml = require('../utils/getRenderedHtml');
 
 module.exports = {
+getAuthenticatedUserProfile: async (req, res, next) => {
+    try {
+      // Ambil ID pengguna dari token yang sudah diverifikasi oleh middleware 'restrict'
+      const { id } = req.user; 
+
+      const peserta = await prisma.pesertaMagang.findFirst({
+        where: { userId: id },
+        include: {
+          // Sertakan data dari tabel User untuk mendapatkan email
+          user: {
+            select: {
+              email: true,
+              role: true,
+            },
+          },
+        },
+      });
+
+      if (!peserta) {
+        return res.status(404).json({
+          status: false,
+          message: 'Profil peserta magang tidak ditemukan',
+          data: null,
+        });
+      }
+
+      // Gabungkan data untuk respons yang lebih rapi
+      const profileData = {
+        ...peserta, // Ambil semua data dari PesertaMagang (namaLengkap, nik, dll)
+        email: peserta.user.email, // Tambahkan email
+        role: peserta.user.role,   // Tambahkan role
+      };
+      delete profileData.user; // Hapus objek user yang bersarang
+
+      return res.status(200).json({
+        status: true,
+        message: 'Berhasil mengambil data profil',
+        data: profileData,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getProfileById: async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const user = await prisma.user.findUnique({
+        where: { id },
+        include: { pesertaMagang: true },
+      });
+
+      if (!user) {
+        return res
+          .status(404)
+          .json({ status: false, message: 'User tidak ditemukan' });
+      }
+
+      return res.json({
+        status: true,
+        data: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          namaLengkap: user.pesertaMagang?.namaLengkap || null,
+          nimNis: user.pesertaMagang?.nimNis || null, // ✅ field sesuai schema
+          jurusan: user.pesertaMagang?.jurusan || null,
+          instansi: user.pesertaMagang?.instansi || null, // ✅ field sesuai schema
+          tglLahir: user.pesertaMagang?.tglLahir || null,
+          noTelepon: user.pesertaMagang?.noTelepon || null,
+          nik: user.pesertaMagang?.nik || null,
+          alamat: user.pesertaMagang?.alamat || null,
+          foto: user.pesertaMagang?.pasFoto || null,
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ status: false, message: 'Server error' });
+    }
+  },
+
   updateUserProfile: async (req, res, next) => {
     try {
-      const { id } = req.user;
-      const { namaLengkap, noTelepon, nik, nimNis, instansi, jurusan, alamat } =
+      const { id } = req.user; // Diambil dari token oleh middleware otentikasi
+      const { namaLengkap, noTelepon, nimNis, instansi, jurusan, alamat } =
         req.body;
 
       // Cari data peserta berdasarkan userId
@@ -24,55 +106,61 @@ module.exports = {
         });
       }
 
-      // Validasi nomor telepon
-      const phoneRegex = /^0[2-9]\d{8,12}$/;
+      // --- VALIDASI INPUT ---
+      if (
+        !namaLengkap ||
+        !noTelepon ||
+        !nimNis ||
+        !instansi ||
+        !jurusan ||
+        !alamat
+      ) {
+        return res.status(400).json({
+          status: false,
+          message: 'Semua kolom yang dapat diedit wajib diisi',
+        });
+      }
+      const phoneRegex = /^0[8]\d{8,11}$/; // Regex umum untuk nomor HP Indonesia
       if (!phoneRegex.test(noTelepon)) {
         return res.status(400).json({
           status: false,
-          message:
-            'Nomor telepon tidak valid (harus 10-13 digit dan diawali 0)',
-          data: null,
+          message: 'Nomor telepon tidak valid (contoh: 081234567890)',
         });
       }
-
-      // Validasi NIK
-      if (!/^\d{16}$/.test(nik)) {
-        return res.status(400).json({
-          status: false,
-          message: 'NIK harus terdiri dari 16 digit angka',
-          data: null,
-        });
-      }
-
-      // Validasi NIM/NIS
       if (!/^[a-zA-Z0-9]{10,12}$/.test(nimNis)) {
         return res.status(400).json({
           status: false,
-          message:
-            'NIM/NIS harus terdiri dari 10 hingga 12 karakter huruf atau angka',
-          data: null,
+          message: 'NIM/NIS harus terdiri dari 10 hingga 12 karakter',
         });
       }
 
+      // Siapkan data yang akan diupdate
+      const dataToUpdate = {
+        namaLengkap,
+        noTelepon,
+        nimNis,
+        instansi,
+        jurusan,
+        alamat,
+      };
+
+      // Cek jika ada file foto baru yang diunggah oleh multer
+      if (req.file) {
+        // Simpan path file ke database
+        // Format path agar bisa diakses dari frontend (sesuaikan dengan setup static file Anda)
+        dataToUpdate.pasFoto = `/images/profiles/${req.file.filename}`;
+      }
+
       // Lakukan update data
-      const updated = await prisma.pesertaMagang.update({
+      const updatedPeserta = await prisma.pesertaMagang.update({
         where: { id: peserta.id },
-        data: {
-          namaLengkap,
-          tglLahir,
-          noTelepon,
-          nik,
-          nimNis,
-          instansi,
-          jurusan,
-          alamat,
-        },
+        data: dataToUpdate,
       });
 
       return res.status(200).json({
         status: true,
         message: 'Profil peserta magang berhasil diperbarui',
-        data: updated,
+        data: updatedPeserta,
       });
     } catch (error) {
       next(error);

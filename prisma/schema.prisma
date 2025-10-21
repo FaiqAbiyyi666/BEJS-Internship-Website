@@ -58,19 +58,15 @@ model PesertaMagang {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  userId   String       @unique @map("user_id")
-  bidangId String?      @map("bidang_id")
-  // Jika User dihapus, PesertaMagang juga dihapus.
-  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Jika KuotaBidang dihapus, set bidangId ke null.
-  bidang   KuotaBidang? @relation(fields: [bidangId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
-  // Jika PesertaMagang dihapus, semua data terkait di bawah ini juga dihapus.
-  ajuan      AjuanMagang[]
-  logbook    Logbook[]
-  laporan    LaporanHasilMagang[]
-  sertifikat Sertifikat[]
-  berkas     BerkasMagang[]
+  userId      String               @unique @map("user_id")
+  bidangId    String?              @map("bidang_id")  // ⬅️ Tambahkan ini (opsional)
+  user        User                 @relation(fields: [userId], references: [id])
+  bidang      KuotaBidang?         @relation(fields: [bidangId], references: [id]) // ⬅️ Relasi opsional
+  ajuan       AjuanMagang[]
+  logbook     Logbook[]
+  laporan     LaporanHasilMagang[]
+  sertifikat  Sertifikat[]
+  berkas      BerkasMagang[]
 }
 
 model AjuanMagang {
@@ -113,8 +109,7 @@ model KuotaBidang {
 model Admin {
   id        String   @id @default(uuid())
   userId    String   @unique @map("user_id")
-  // Jika User dihapus, role Admin ini juga dihapus.
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 }
@@ -125,11 +120,8 @@ model SubKoordinatorBidang {
   userId   String @unique @map("user_id")
   bidangId String @map("bidang_id")
 
-  // Jika User dihapus, role SubKoordinator ini juga dihapus.
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Jika KuotaBidang dihapus, JANGAN hapus SubKoordinator (Restrict).
-  // Pindahkan SubKoordinator ke bidang lain dulu, baru hapus bidang.
-  bidang    KuotaBidang @relation(fields: [bidangId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  user      User        @relation(fields: [userId], references: [id])
+  bidang    KuotaBidang @relation(fields: [bidangId], references: [id])
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime    @updatedAt @map("updated_at")
 }
@@ -142,8 +134,7 @@ model Logbook {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   pesertaId String        @map("peserta_id")
-  // Jika PesertaMagang dihapus, Logbook-nya juga dihapus.
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
 }
 
 model KritikSaran {
@@ -155,8 +146,7 @@ model KritikSaran {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   userId String @map("user_id")
-  // Jika User dihapus, KritikSaran-nya juga dihapus.
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
 }
 
 model UlasanMagang {
@@ -167,8 +157,7 @@ model UlasanMagang {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   userId String @map("user_id")
-  // Jika User dihapus, UlasanMagang-nya juga dihapus.
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
 }
 
 model LaporanHasilMagang {
@@ -178,8 +167,7 @@ model LaporanHasilMagang {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   pesertaId String        @map("peserta_id")
-  // Jika PesertaMagang dihapus, Laporan-nya juga dihapus.
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
 }
 
 model Sertifikat {
@@ -190,8 +178,7 @@ model Sertifikat {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   pesertaId String        @map("peserta_id")
-  // Jika PesertaMagang dihapus, Sertifikat-nya juga dihapus.
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
 }
 
 model BerkasMagang {
@@ -206,8 +193,7 @@ model BerkasMagang {
   updatedAt            DateTime @updatedAt @map("updated_at")
 
   pesertaId String        @map("peserta_id")
-  // Jika PesertaMagang dihapus, BerkasMagang-nya juga dihapus.
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
 }
 
 model Notifikasi {
@@ -218,6 +204,5 @@ model Notifikasi {
   createdAt DateTime @default(now()) @map("created_at")
 
   userId String @map("user_id")
-  // Jika User dihapus, Notifikasi-nya juga dihapus.
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
 }
