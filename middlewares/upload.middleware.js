@@ -35,7 +35,7 @@ const upload = multer({
  */
 const uploadPasFoto = (req, res, next) => {
   // Gunakan middleware single dari multer untuk field 'pas_foto'
-  upload.single('pas_foto')(req, res, async (err) => {
+  upload.single('pasFoto')(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ message: err.message });
     }
@@ -58,7 +58,7 @@ const uploadPasFoto = (req, res, next) => {
       });
 
       // Simpan URL hasil upload ke req.body agar bisa diakses controller
-      req.body.pas_foto_url = result.url;
+      req.body.pasFotoUrl = result.url;
       next();
     } catch (error) {
       console.error(error);

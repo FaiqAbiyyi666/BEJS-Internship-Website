@@ -143,11 +143,10 @@ module.exports = {
         alamat,
       };
 
-      // Cek jika ada file foto baru yang diunggah oleh multer
-      if (req.file) {
-        // Simpan path file ke database
-        // Format path agar bisa diakses dari frontend (sesuaikan dengan setup static file Anda)
-        dataToUpdate.pasFoto = `/images/profiles/${req.file.filename}`;
+      // Cek apakah middleware uploadPasFoto menemukan URL foto baru dari ImageKit
+      if (req.body.pasFotoUrl) {
+        // Simpan URL dari ImageKit ke kolom database 'pasFoto'
+        dataToUpdate.pasFoto = req.body.pasFotoUrl;
       }
 
       // Lakukan update data
