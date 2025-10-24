@@ -359,7 +359,7 @@ module.exports = {
     }
   },
 
-  getAllPesertaMagang: async (req, res, next) => {
+  getAllDataMagang: async (req, res, next) => {
     try {
       const pesertaMagang = await prisma.pesertaMagang.findMany({
         include: {
@@ -370,6 +370,7 @@ module.exports = {
             },
           },
           bidang: {
+            // Ini penting untuk frontend
             select: {
               nama: true,
               kuota: true,
@@ -385,40 +386,6 @@ module.exports = {
         status: true,
         message: 'Daftar semua peserta magang berhasil diambil',
         data: pesertaMagang,
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  getAllSubKoordinatorBidang: async (req, res, next) => {
-    try {
-      const subkoordinators = await prisma.subKoordinatorBidang.findMany({
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              role: true,
-            },
-          },
-          bidang: {
-            select: {
-              id: true,
-              nama: true,
-              kuota: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-      return res.status(200).json({
-        status: true,
-        message: 'Daftar semua sub koordinator bidang berhasil diambil',
-        data: subkoordinators,
       });
     } catch (error) {
       next(error);

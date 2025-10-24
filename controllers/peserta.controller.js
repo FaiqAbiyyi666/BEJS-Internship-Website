@@ -165,4 +165,29 @@ module.exports = {
       next(error);
     }
   },
+
+  getAllDataMagang: async (req, res) => {
+    try {
+      // Ambil semua peserta magang
+      // Kita juga menyertakan data 'user' terkait untuk mendapatkan email
+      const allPeserta = await prisma.pesertaMagang.findMany({
+        include: {
+          user: {
+            select: {
+              email: true,
+            },
+          },
+        },
+      }); // Kirim data sebagai respons
+
+      res.status(200).json({
+        status: true,
+        message: 'Data semua peserta magang berhasil diambil',
+        data: allPeserta,
+      });
+    } catch (error) {
+      console.error('Error saat mengambil data magang:', error);
+      res.status(500).json({ status: false, message: 'Server error' });
+    }
+  },
 };

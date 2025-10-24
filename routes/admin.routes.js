@@ -3,6 +3,7 @@ const router = express.Router();
 const admin = require('../controllers/admin.controller');
 const subkoorbid = require('../controllers/subkoorbid.controller');
 const bidang = require('../controllers/bidang.controller');
+const peserta = require('../controllers/peserta.controller');
 const { restrict, isAdmin } = require('../middlewares/auth.middleware');
 
 // Daftar peserta magang pending
@@ -87,5 +88,8 @@ router.get('/bidang', restrict, isAdmin, bidang.getAllKuotaBidang);
 
 // Get Bidang By ID
 router.get('/bidang/:id', restrict, isAdmin, bidang.getKuotaBidangById);
+
+// Get All Data Magang
+router.get('/data-magang', restrict, isAdmin, admin.getAllDataMagang);
 
 module.exports = router;
