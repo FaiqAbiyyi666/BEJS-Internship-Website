@@ -90,6 +90,6 @@ router.get('/bidang', restrict, isAdmin, bidang.getAllKuotaBidang);
 router.get('/bidang/:id', restrict, isAdmin, bidang.getKuotaBidangById);
 
 // Get All Data Magang
-router.get('/data-magang', restrict, isAdmin, admin.getAllDataMagang);
+router.get('/data-magang', restrict, isAdmin, peserta.getAllPesertaMagang);
 
 module.exports = router;

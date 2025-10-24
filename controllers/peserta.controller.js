@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient, Role } = require('@prisma/client');
 const prisma = new PrismaClient();
 const sendEmail = require('../utils/sendEmail');
 
@@ -165,28 +165,80 @@ module.exports = {
     }
   },
 
-  getAllDataMagang: async (req, res) => {
+  getAllPesertaMagang: async (req, res, next) => {
     try {
-      // Ambil semua peserta magang
-      // Kita juga menyertakan data 'user' terkait untuk mendapatkan email
-      const allPeserta = await prisma.pesertaMagang.findMany({
+      // 1. Query (Ini sudah benar dari perbaikan sebelumnya)
+      const users = await prisma.user.findMany({
+        where: {
+          role: Role.peserta_magang,
+        },
         include: {
-          user: {
-            select: {
-              email: true,
+          pesertaMagang: {
+            include: {
+              ajuan: {
+                orderBy: { createdAt: 'desc' },
+                take: 1,
+                include: {
+                  bidang: {
+                    select: { nama: true },
+                  },
+                },
+              },
+              sertifikat: {
+                take: 1,
+              },
             },
           },
         },
-      }); // Kirim data sebagai respons
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
 
-      res.status(200).json({
+      if (!users || users.length === 0) {
+        return res.status(200).json({
+          status: true,
+          message: 'Belum ada data peserta magang.',
+          data: [],
+        });
+      } // --- INI PERBAIKANNYA --- // 2. Format data agar COCOK DENGAN FRONTEND (Lebih Aman)
+
+      const allPeserta = users.map((user) => {
+        const profile = user.pesertaMagang || {};
+
+        // Cek apakah 'ajuan' ada DAN tidak kosong
+        const ajuan =
+          profile.ajuan && profile.ajuan.length > 0 ? profile.ajuan[0] : {}; // <-- Jika tidak, jadikan object kosong
+
+        const bidang = ajuan.bidang || {}; // <-- Ini sekarang aman
+        const sertifikat = profile.sertifikat && profile.sertifikat.length > 0;
+
+        return {
+          id: user.id,
+          foto: profile.pasFoto || '/default-profile.png',
+          nama: profile.namaLengkap || 'Peserta Baru (Belum Isi Profil)',
+          nim: profile.nimNis || null,
+          noTelepon: profile.noTelepon || null,
+          alamat: profile.alamat || null,
+          email: user.email,
+          instansi: profile.instansi || null,
+          jurusan: profile.jurusan || null,
+          bidang: bidang.nama || 'Belum Mendaftar Bidang',
+          periodeMulai: ajuan.tglMulai || '-',
+          periodeSelesai: ajuan.tglSelesai || '-',
+          suratMagang: ajuan.statusUsulan || 'PERLU DIKIRIM',
+          statusMagang: profile.status || 'N/A',
+          sertifikat: sertifikat ? 'Sudah Diterbitkan' : 'Belum Diterbitkan',
+        };
+      }); // -------------------------
+      return res.status(200).json({
         status: true,
-        message: 'Data semua peserta magang berhasil diambil',
+        message: 'Berhasil mengambil semua data peserta magang.',
         data: allPeserta,
       });
     } catch (error) {
-      console.error('Error saat mengambil data magang:', error);
-      res.status(500).json({ status: false, message: 'Server error' });
+      console.error('Error di getAllPesertaMagang:', error);
+      next(error);
     }
   },
 };
