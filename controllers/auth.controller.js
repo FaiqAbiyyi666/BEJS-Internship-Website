@@ -7,6 +7,7 @@ const ejs = require('ejs');
 const path = require('path');
 const sendMail = require('../utils/sendEmail');
 const getRenderedHtml = require('../utils/getRenderedHtml');
+const { Role, StatusPeserta } = require('@prisma/client');
 
 module.exports = {
   register: async (req, res, next) => {
@@ -25,7 +26,7 @@ module.exports = {
         alamat,
       } = req.body;
 
-      const pasFotoUrl = req.body.pas_foto_url;
+      const pasFotoUrl = req.body.pasFotoUrl;
 
       let parsedTglLahir = null;
       if (tglLahir) {
@@ -76,7 +77,7 @@ module.exports = {
         data: {
           email,
           password: hashedPassword,
-          role: role || 'peserta_magang',
+          role: Role.peserta_magang,
         },
       });
 
@@ -94,7 +95,7 @@ module.exports = {
           alamat,
           // --- PERBAIKAN ---
           // GANTI 'isApproved: false' MENJADI 'status: 'PENDING''
-          status: 'PENDING', // Set status awal sebagai PENDING
+          status: StatusPeserta.PENDING, // Set status awal sebagai PENDING
           pasFoto: pasFotoUrl,
         },
       });

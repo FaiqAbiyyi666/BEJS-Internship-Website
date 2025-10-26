@@ -58,20 +58,19 @@ model PesertaMagang {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  userId      String               @unique @map("user_id")
-  bidangId    String?              @map("bidang_id")  // ⬅️ Tambahkan ini (opsional)
-  user        User                 @relation(fields: [userId], references: [id])
-  bidang      KuotaBidang?         @relation(fields: [bidangId], references: [id]) // ⬅️ Relasi opsional
-  ajuan       AjuanMagang[]
-  logbook     Logbook[]
-  laporan     LaporanHasilMagang[]
-  sertifikat  Sertifikat[]
-  berkas      BerkasMagang[]
+  userId     String               @unique @map("user_id")
+  bidangId   String?              @map("bidang_id") // ⬅️ Tambahkan ini (opsional)
+  user       User                 @relation(fields: [userId], references: [id])
+  bidang     KuotaBidang?         @relation(fields: [bidangId], references: [id]) // ⬅️ Relasi opsional
+  ajuan      AjuanMagang[]
+  logbook    Logbook[]
+  laporan    LaporanHasilMagang[]
+  sertifikat Sertifikat[]
+  berkas     BerkasMagang[]
 }
 
 model AjuanMagang {
   id                String   @id @default(uuid())
-  jenisMagang       String   @map("jenis_magang")
   kategoriMagang    String   @map("kategori_magang")
   statusPendidikan  String   @map("status_pendidikan")
   jenjangPendidikan String   @map("jenjang_pendidikan")

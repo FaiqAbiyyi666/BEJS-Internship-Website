@@ -3,8 +3,8 @@ POST http://localhost:3000/api/admin/create-admin
 Content-Type: application/json
 
 {
-  "email": "magangdiskominfo.sidoarjokab@gmail.com",
-  "password": "sidoarjobersihkkn1859"
+  "email": "abiyyiaja@gmail.com",
+  "password": "lama12345"
 }
 
 ### Create SubKoordinatorBidang Account
