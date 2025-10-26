@@ -34,4 +34,18 @@ router.post(
   ajuan.createAjuanMagang
 );
 
+router.get(
+  '/ajuan-magang',
+  restrict,
+  isPesertaMagang,
+  ajuan.getAjuanMagangByPeserta
+);
+
+router.get(
+  '/ajuan-magang/:id',
+  restrict,
+  isPesertaMagang,
+  ajuan.getDetailAjuanMagang
+);
+
 module.exports = router;

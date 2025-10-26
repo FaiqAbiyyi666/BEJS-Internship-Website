@@ -191,11 +191,19 @@ module.exports = {
    */
   getAjuanMagangByPeserta: async (req, res, next) => {
     try {
-      const { userId } = req.user;
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          status: false,
+          message: 'Data pengguna tidak ditemukan dari token.',
+          data: null,
+        });
+      }
+
+      const userIdFromToken = req.user.id;
 
       // 1. Cari PesertaMagang ID
       const peserta = await prisma.pesertaMagang.findUnique({
-        where: { userId: userId },
+        where: { userId: userIdFromToken },
         select: { id: true },
       });
 
@@ -214,7 +222,7 @@ module.exports = {
         },
         include: {
           bidang: {
-            select: { nama: true }, // Ambil nama bidang
+            select: { id: true, nama: true }, // Ambil nama bidang
           },
         },
         orderBy: {
@@ -226,6 +234,82 @@ module.exports = {
         status: true,
         message: 'Riwayat ajuan berhasil diambil.',
         data: riwayatAjuan,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getDetailAjuanMagang: async (req, res, next) => {
+    try {
+      // 1. Validasi User dari Token
+      if (!req.user || !req.user.id) {
+        return res.status(401).json({
+          status: false,
+          message: 'Autentikasi gagal. Token tidak valid.',
+          data: null,
+        });
+      }
+      const userIdFromToken = req.user.id;
+
+      // 2. Ambil ID Ajuan dari parameter URL
+      const { id: ajuanId } = req.params;
+      if (!ajuanId) {
+        return res
+          .status(400)
+          .json({ status: false, message: 'ID Ajuan diperlukan.', data: null });
+      }
+
+      // 3. Ambil data AjuanMagang dari database
+      const ajuan = await prisma.ajuanMagang.findUnique({
+        where: {
+          id: ajuanId,
+        },
+        include: {
+          // Ambil nama bidang
+          bidang: {
+            select: {
+              nama: true,
+            },
+          },
+          // Ambil data peserta (yang memiliki data ajuan ini)
+          peserta: {
+            include: {
+              // Ambil juga data berkas milik peserta tersebut
+              // Kita ambil 1 berkas terbaru (sesuai logika 'createAjuanMagang')
+              berkas: {
+                orderBy: {
+                  createdAt: 'desc',
+                },
+                take: 1,
+              },
+            },
+          },
+        },
+      });
+
+      // 4. Validasi: Cek jika ajuan ada
+      if (!ajuan) {
+        return res
+          .status(404)
+          .json({ status: false, message: 'Ajuan magang tidak ditemukan.' });
+      }
+
+      // 5. Validasi Keamanan: Cek jika peserta yang login = pemilik ajuan
+      // Ini memastikan peserta A tidak bisa melihat detail ajuan milik peserta B
+      if (ajuan.peserta.userId !== userIdFromToken) {
+        return res.status(403).json({
+          status: false,
+          message: 'Anda tidak memiliki izin untuk melihat detail ajuan ini.',
+          data: null,
+        });
+      }
+
+      // 6. Kirim data
+      res.status(200).json({
+        status: true,
+        message: 'Detail ajuan magang berhasil diambil.',
+        data: ajuan,
       });
     } catch (error) {
       next(error);
