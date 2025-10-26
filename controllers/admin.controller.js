@@ -415,6 +415,115 @@ module.exports = {
     }
   },
 
+  adminUpdatePesertaProfile: async (req, res, next) => {
+    // Ambil ID user dari parameter URL
+    const { userId } = req.params;
+
+    // Ambil data yang dikirim dari form frontend
+    const {
+      email,
+      namaLengkap,
+      nimNis,
+      tglLahir,
+      noTelepon,
+      nik,
+      alamat,
+      instansi,
+      jurusan,
+      periodeMulai,
+      periodeSelesai,
+      bidangId,
+      ajuanId, // Kita perlu ID ajuan untuk update periode/bidang
+    } = req.body;
+
+    // Validasi sederhana
+    if (
+      !email ||
+      !namaLengkap ||
+      !nimNis ||
+      !tglLahir ||
+      !noTelepon ||
+      !nik ||
+      !alamat ||
+      !instansi ||
+      !jurusan
+    ) {
+      return res.status(400).json({
+        status: false,
+        message:
+          'Semua field data personal (Nama, NIM, Email, dll) wajib diisi.',
+      });
+    }
+
+    try {
+      // Gunakan $transaction untuk memastikan integritas data
+      await prisma.$transaction(async (tx) => {
+        // 1. Update tabel User (hanya email)
+        await tx.user.update({
+          where: { id: userId },
+          data: { email: email },
+        });
+
+        // 2. Update tabel PesertaMagang
+        // Kita perlu ID PesertaMagang, bukan userId
+        const peserta = await tx.pesertaMagang.findFirst({
+          where: { userId: userId },
+          select: { id: true },
+        });
+
+        if (!peserta) {
+          throw new Error(
+            'Profil PesertaMagang tidak ditemukan untuk user ini.'
+          );
+        }
+
+        await tx.pesertaMagang.update({
+          where: { id: peserta.id },
+          data: {
+            namaLengkap,
+            nimNis,
+            tglLahir: new Date(tglLahir),
+            noTelepon,
+            nik,
+            alamat,
+            instansi,
+            jurusan,
+          },
+        });
+
+        // 3. HANYA update data ajuan jika datanya dikirim (tidak kosong/null)
+        //    Frontend akan mengirim string kosong "" jika tidak ada, yg dievaluasi sbg 'false'
+        if (ajuanId && periodeMulai && periodeSelesai && bidangId) {
+          // Cek dulu apakah ajuanId-nya valid
+          const ajuan = await tx.ajuanMagang.findUnique({
+            where: { id: ajuanId },
+          });
+
+          if (ajuan) {
+            // Jika peserta sudah punya ajuan, update ajuan tersebut
+            await tx.ajuanMagang.update({
+              where: { id: ajuanId },
+              data: {
+                tglMulai: new Date(periodeMulai),
+                tglSelesai: new Date(periodeSelesai),
+                bidangId: bidangId,
+              },
+            });
+          }
+        }
+      });
+
+      // Jika transaksi sukses
+      res.status(200).json({
+        status: true,
+        message: 'Data peserta berhasil diperbarui oleh Admin.',
+      });
+    } catch (error) {
+      console.error('Error saat Admin update data peserta:', error);
+      next(error); // Kirim ke error handler
+    }
+  },
+
   getAllLogbookPeserta: async (req, res, next) => {
     try {
       const logbooks = await prisma.logbook.findMany({

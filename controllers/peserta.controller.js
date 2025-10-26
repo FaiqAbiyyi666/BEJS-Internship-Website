@@ -205,30 +205,33 @@ module.exports = {
 
       const allPeserta = users.map((user) => {
         const profile = user.pesertaMagang || {};
-
-        // Cek apakah 'ajuan' ada DAN tidak kosong
         const ajuan =
-          profile.ajuan && profile.ajuan.length > 0 ? profile.ajuan[0] : {}; // <-- Jika tidak, jadikan object kosong
-
-        const bidang = ajuan.bidang || {}; // <-- Ini sekarang aman
+          profile.ajuan && profile.ajuan.length > 0 ? profile.ajuan[0] : {};
+        const bidang = ajuan.bidang || {};
         const sertifikat = profile.sertifikat && profile.sertifikat.length > 0;
 
         return {
-          id: user.id,
+          id: user.id, // Ini adalah userId, frontend menggunakan ini sebagai selectedPeserta.id
           foto: profile.pasFoto || '/default-profile.png',
           nama: profile.namaLengkap || 'Peserta Baru (Belum Isi Profil)',
           nim: profile.nimNis || null,
-          noTelepon: profile.noTelepon || null,
-          alamat: profile.alamat || null,
           email: user.email,
           instansi: profile.instansi || null,
-          jurusan: profile.jurusan || null,
+          jurusan: profile.jurusan || null, // <-- TAMBAHKAN JURUSAN (Anda punya ini di form)
+          noTelepon: profile.noTelepon || null, // <-- TAMBAHKAN NO TELP
+          nik: profile.nik || null, // <-- TAMBAHKAN NIK
+          alamat: profile.alamat || null, // <-- TAMBAHKAN ALAMAT
+          tglLahir: profile.tglLahir || null, // <-- TAMBAHKAN TGL LAHIR
           bidang: bidang.nama || 'Belum Mendaftar Bidang',
           periodeMulai: ajuan.tglMulai || '-',
           periodeSelesai: ajuan.tglSelesai || '-',
-          suratMagang: ajuan.statusUsulan || 'PERLU DIKIRIM',
+          suratMagang: ajuan.statusUsulan || 'Perlu Dikirim',
           statusMagang: profile.status || 'N/A',
           sertifikat: sertifikat ? 'Sudah Diterbitkan' : 'Belum Diterbitkan',
+
+          // --- PRASYARAT PENTING ---
+          bidangId: bidang.id || null, // Kirim ID bidang
+          ajuanId: ajuan.id || null, // Kirim ID ajuan
         };
       }); // -------------------------
       return res.status(200).json({

@@ -6,6 +6,8 @@ const bidang = require('../controllers/bidang.controller');
 const peserta = require('../controllers/peserta.controller');
 const { restrict, isAdmin } = require('../middlewares/auth.middleware');
 
+router.post('/create-admin', admin.createAdmin);
+
 // Daftar peserta magang pending
 router.get(
   '/peserta-magang/pending',
@@ -38,7 +40,13 @@ router.patch(
   admin.rejectPesertaMagang
 );
 
-router.post('/create-admin', admin.createAdmin);
+// Rute untuk Admin memperbarui detail peserta
+router.put(
+  '/peserta-magang/:userId', // :userId adalah ID dari tabel User
+  restrict,
+  isAdmin,
+  admin.adminUpdatePesertaProfile // Kita akan buat fungsi ini
+);
 
 // CREATE Sub Koordinator Akun
 router.post(
