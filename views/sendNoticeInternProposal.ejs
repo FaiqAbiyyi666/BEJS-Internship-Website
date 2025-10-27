@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+        <% if (diterima) { %>
+            Usulan Magang Diterima
+            <% } else { %>
+                Usulan Magang Ditolak
+                <% } %>
+                    - Sistem Magang
+    </title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+    <style>
+        * {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            background-color: #ffffff;
+            margin: 0 auto;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            color: #002942;
+        }
+
+        .logo {
+            width: 180px;
+            margin-bottom: 20px;
+        }
+
+        .heading {
+            font-size: 22px;
+            color: #006DA6;
+            margin-bottom: 15px;
+        }
+
+        .heading.rejected {
+            color: #D9534F;
+            /* Warna merah untuk penolakan */
+        }
+
+        .content {
+            font-size: 15px;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .content.greeting span {
+            font-weight: 600;
+            color: #006DA6;
+        }
+
+        .details-box {
+            background-color: #f9f9f9;
+            border: 1px solid #e9e9e9;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+            font-size: 14px;
+        }
+
+        .details-box p {
+            margin-bottom: 10px;
+        }
+
+        .details-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        .details-box strong {
+            color: #002942;
+        }
+
+        .footer-note {
+            font-size: 11px;
+            color: #666;
+            margin-top: 20px;
+            border-top: 1px solid #eee;
+            padding-top: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <img src="https://ik.imagekit.io/magangdiskominfo/Logo Simagang with Text.png" alt="Logo SIMAGANG"
+            class="logo" />
+
+        <% if (diterima) { %>
+
+            <h1 class="heading">Selamat! Usulan Magang Diterima 🎉</h1>
+            <p class="content greeting">
+                Hai, <span>
+                    <%= namaLengkap %>
+                </span>!
+            </p>
+            <p class="content">
+                Kami ucapkan selamat! Setelah melalui proses peninjauan, usulan magang Anda telah <b>DITERIMA</b>
+                di <b>Diskominfo Sidoarjo</b>.
+            </p>
+
+            <div class="details-box">
+                <p><strong>Detail Penempatan:</strong></p>
+                <p><strong>Bidang:</strong>
+                    <%= detail.namaBidang %>
+                </p>
+                <p><strong>Periode Magang:</strong>
+                    <%= detail.tanggalMulai %> s.d. <%= detail.tanggalSelesai %>
+                </p>
+            </div>
+
+            <p class="content">
+                Informasi lebih lanjut mengenai penerbitan <b>Surat Penerimaan Magang</b> akan kami sampaikan melalui
+                sistem atau email terpisah.
+            </p>
+            <p class="content">
+                Kami tunggu kehadiran Anda. Selamat bergabung! 🙌
+            </p>
+
+            <% } else { %>
+
+                <h1 class="heading rejected">Pemberitahuan Status Usulan Magang</h1>
+                <p class="content greeting">
+                    Hai, <span>
+                        <%= namaLengkap %>
+                    </span>!
+                </p>
+                <p class="content">
+                    Terima kasih telah mengajukan usulan magang di <b>Diskominfo Sidoarjo</b>.
+                </p>
+                <p class="content">
+                    Setelah melalui proses peninjauan dan seleksi, dengan berat hati kami sampaikan bahwa usulan magang
+                    Anda
+                    saat ini <b>DITOLAK</b>.
+                </p>
+
+                <p class="content">
+                    Kami menghargai antusiasme Anda. Jangan berkecil hati dan tetap semangat.
+                    Kami harap Anda dapat mencobanya kembali di kesempatan berikutnya.
+                </p>
+                <p class="content">
+                    Semoga sukses selalu untuk Anda!
+                </p>
+
+                <% } %>
+
+                    <p class="footer-note">
+                        &copy; 2025 Diskominfo Sidoarjo - Sistem Informasi Magang
+                    </p>
+    </div>
+</body>
+
+</html>

@@ -1,6 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const sendEmail = require('../utils/sendEmail');
+const ejs = require('ejs');
+const path = require('path');
 
 const cekKuota = async (bidangId) => {
   // Validasi input. ID tidak boleh null, undefined, atau string kosong.
@@ -190,6 +192,9 @@ module.exports = {
    * 2. PESERTA: Melihat Riwayat Ajuan Magang Milik Sendiri
    */
   getAjuanMagangByPeserta: async (req, res, next) => {
+    console.log(
+      '--- ENTERING getAjuanMagangByPeserta (VERSION WITH SELECT ID) ---'
+    );
     try {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
@@ -217,18 +222,28 @@ module.exports = {
 
       // 2. Ambil semua ajuan magang milik peserta tsb
       const riwayatAjuan = await prisma.ajuanMagang.findMany({
-        where: {
-          pesertaId: peserta.id,
-        },
-        include: {
+        where: { pesertaId: peserta.id },
+        select: {
+          id: true,
+          createdAt: true,
+          temaMagang: true,
+          tglMulai: true,
+          tglSelesai: true,
+          statusUsulan: true,
           bidang: {
-            select: { id: true, nama: true }, // Ambil nama bidang
+            select: {
+              id: true,
+              nama: true,
+            },
           },
         },
-        orderBy: {
-          createdAt: 'desc', // Tampilkan yang terbaru di atas
-        },
+        orderBy: { createdAt: 'desc' },
       });
+
+      console.log(
+        'Data RIWAYAT AJUAN yang akan dikirim ke frontend:',
+        JSON.stringify(riwayatAjuan, null, 2)
+      );
 
       res.status(200).json({
         status: true,
@@ -266,17 +281,13 @@ module.exports = {
           id: ajuanId,
         },
         include: {
-          // Ambil nama bidang
           bidang: {
             select: {
               nama: true,
             },
           },
-          // Ambil data peserta (yang memiliki data ajuan ini)
           peserta: {
             include: {
-              // Ambil juga data berkas milik peserta tersebut
-              // Kita ambil 1 berkas terbaru (sesuai logika 'createAjuanMagang')
               berkas: {
                 orderBy: {
                   createdAt: 'desc',
@@ -295,8 +306,6 @@ module.exports = {
           .json({ status: false, message: 'Ajuan magang tidak ditemukan.' });
       }
 
-      // 5. Validasi Keamanan: Cek jika peserta yang login = pemilik ajuan
-      // Ini memastikan peserta A tidak bisa melihat detail ajuan milik peserta B
       if (ajuan.peserta.userId !== userIdFromToken) {
         return res.status(403).json({
           status: false,
@@ -401,7 +410,6 @@ module.exports = {
                 nimNis: true,
                 user: { select: { email: true } },
                 pasFoto: true,
-                // Ambil juga berkas terbaru milik peserta
                 berkas: {
                   orderBy: { createdAt: 'desc' },
                   take: 1,
@@ -444,9 +452,7 @@ module.exports = {
   updateStatusAjuan: async (req, res, next) => {
     try {
       const { id: ajuanId } = req.params;
-      // Hanya butuh 'status' dari body
       const { status } = req.body;
-      // alasanPenolakan diabaikan jika tidak dikirim frontend
 
       if (!['DITERIMA', 'DITOLAK'].includes(status)) {
         return res.status(400).json({
@@ -456,15 +462,24 @@ module.exports = {
         });
       }
 
-      // 1. Ambil data ajuan
+      // 1. Ambil data ajuan (Query sudah DIPERBAIKI)
       const ajuan = await prisma.ajuanMagang.findUnique({
         where: { id: ajuanId },
-        include: {
+        // Gunakan 'select' untuk memastikan semua data terambil
+        select: {
+          id: true,
+          statusUsulan: true, // Dibutuhkan untuk Cek Kuota
+
+          // ======== PERBAIKAN 1: Ambil tanggal ========
+          tglMulai: true,
+          tglSelesai: true,
+          // ==========================================
+
           peserta: {
             select: {
               id: true,
               namaLengkap: true,
-              user: { select: { email: true } },
+              user: { select: { email: true } }, // Ambil email dari User
             },
           },
           bidang: {
@@ -481,7 +496,7 @@ module.exports = {
         });
       }
 
-      // 2. Cek Kuota jika DITERIMA
+      // 2. Cek Kuota (Logic Anda)
       if (status === 'DITERIMA' && ajuan.statusUsulan !== 'DITERIMA') {
         const kuotaTersedia = await cekKuota(ajuan.bidang.id);
         if (!kuotaTersedia) {
@@ -516,56 +531,98 @@ module.exports = {
       // 5. Kirim Email Notifikasi Status
       const { email: emailPeserta } = ajuan.peserta.user;
       const { namaLengkap: namaPeserta } = ajuan.peserta;
-      const { nama: namaBidang } = ajuan.bidang;
+
+      // ==========================================================
+      // !! PERBAIKAN 2: Validasi email untuk error 'No recipients' !!
+      // ==========================================================
+      if (!emailPeserta) {
+        console.error(
+          `Gagal mengirim email: Email tidak ditemukan untuk peserta ${namaPeserta} (ID: ${ajuan.peserta.id})`
+        );
+
+        // Kirim respons sukses ke admin, tapi beri peringatan
+        return res.status(200).json({
+          status: true,
+          message: `Ajuan berhasil di-${status.toLowerCase()}. PERINGATAN: Notifikasi email GAGAL terkirim (email peserta tidak terdaftar).`,
+          data: null,
+        });
+      }
+      // ==========================================================
 
       let emailSubject = '';
-      let emailBody = '';
+      let templateData = {};
+
+      const formatDate = (date) => {
+        if (!date) return 'N/A';
+        return new Date(date).toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+      };
 
       if (status === 'DITERIMA') {
-        emailSubject = 'Selamat! Ajuan Magang Anda Diterima';
-        emailBody = `<p>Halo ${namaPeserta},</p><p>Kami senang memberitahukan bahwa ajuan magang Anda untuk bidang <strong>${namaBidang}</strong> telah <strong>DITERIMA</strong>.</p><p>Informasi lebih lanjut mengenai jadwal dan surat penerimaan resmi akan kami kirimkan dalam email terpisah.</p><p>Terima kasih.</p>`;
+        emailSubject = 'Selamat! Usulan Magang Anda Diterima 🎉';
+        templateData = {
+          namaLengkap: namaPeserta,
+          diterima: true,
+          detail: {
+            namaBidang: ajuan.bidang.nama,
+            tanggalMulai: formatDate(ajuan.tglMulai),
+            tanggalSelesai: formatDate(ajuan.tglSelesai),
+          },
+        };
       } else {
-        emailSubject = 'Informasi Status Ajuan Magang Anda';
-        // Email tanpa alasan penolakan
-        emailBody = `<p>Halo ${namaPeserta},</p><p>Setelah meninjau ajuan magang Anda untuk bidang <strong>${namaBidang}</strong>, dengan berat hati kami sampaikan bahwa ajuan Anda <strong>DITOLAK</strong>.</p><p>Terima kasih atas minat Anda.</p>`;
+        // DITOLAK
+        emailSubject = 'Pemberitahuan Status Usulan Magang';
+        templateData = {
+          namaLengkap: namaPeserta,
+          diterima: false,
+          detail: {},
+        };
       }
 
-      // Kirim email
-      sendEmail(emailPeserta, emailSubject, emailBody).catch((err) => {
-        console.error('Gagal mengirim email notifikasi status:', err);
+      // Tentukan path ke file template EJS Anda
+      const templatePath = path.join(
+        __dirname,
+        '../views/sendNoticeInternProposal.ejs' // Path Anda
+      );
+
+      // Render file EJS menjadi string HTML
+      ejs.renderFile(templatePath, templateData, (err, html) => {
+        if (err) {
+          console.error('Gagal me-render EJS untuk email:', err);
+          // Jika render gagal, email tidak terkirim, tapi DB sudah update.
+          // Respons sukses di bawah akan tetap terkirim.
+        } else {
+          // Kirim email (non-blocking)
+          // ==========================================================
+          // !! PERBAIKAN 3: Menggunakan 'sendMail' dan parameter Anda !!
+          // ==========================================================
+          sendEmail({
+            from: process.env.SENDER_GMAIL,
+            to: emailPeserta, // 'to' bukan 'email'
+            subject: emailSubject,
+            html: html, // 'html' bukan 'htmlEmail'
+          }).catch((emailError) => {
+            // Tangkap error pengiriman email di sini agar server tidak crash
+            console.error(
+              'Gagal mengirim email notifikasi status:',
+              emailError
+            );
+          });
+        }
       });
 
+      // Kirim respons sukses ke admin (DB update berhasil)
+      // Ini akan terkirim TANPA menunggu email selesai dikirim
       res.status(200).json({
         status: true,
-        message: `Ajuan berhasil di-${status.toLowerCase()}. Notifikasi email telah dikirim.`,
+        message: `Ajuan berhasil di-${status.toLowerCase()}. Notifikasi email sedang diproses.`,
         data: null,
       });
     } catch (error) {
-      // Tangani error spesifik dari cekKuota atau P2025
-      if (error.message.includes('Kuota untuk bidang ini sudah penuh.')) {
-        return res
-          .status(400)
-          .json({ status: false, message: error.message, data: null });
-      }
-      if (
-        error.message.includes('Bidang tidak ditemukan') ||
-        error.message.includes('ID Bidang') ||
-        error.message.includes('Format ID Bidang')
-      ) {
-        return res.status(400).json({
-          status: false,
-          message: `Input Bidang Pilihan tidak valid. Detail: ${error.message}`,
-          data: null,
-        });
-      }
-      if (error.code === 'P2025') {
-        return res.status(404).json({
-          status: false,
-          message: 'Gagal update: Record terkait tidak ditemukan (P2025).',
-          data: null,
-        });
-      }
-      // Teruskan error lain
+      // Tangani error lain (DB, Kuota, dll)
       next(error);
     }
   },
