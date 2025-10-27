@@ -379,14 +379,36 @@ module.exports = {
       const [ajuanList, totalItems] = await prisma.$transaction([
         prisma.ajuanMagang.findMany({
           where: whereClause,
-          include: {
+          select: {
+            id: true,
+            createdAt: true,
+            updatedAt: true,
+            // Data Ajuan
+            instansi: true,
+            jurusan: true,
+            statusPendidikan: true,
+            jenjangPendidikan: true,
+            temaMagang: true,
+            tglMulai: true,
+            tglSelesai: true,
+            statusUsulan: true,
+
+            // Data Relasi Peserta
             peserta: {
               select: {
+                id: true,
                 namaLengkap: true,
                 nimNis: true,
                 user: { select: { email: true } },
+                pasFoto: true,
+                // Ambil juga berkas terbaru milik peserta
+                berkas: {
+                  orderBy: { createdAt: 'desc' },
+                  take: 1,
+                },
               },
             },
+            // Data Relasi Bidang
             bidang: {
               select: { nama: true },
             },

@@ -4,6 +4,7 @@ const admin = require('../controllers/admin.controller');
 const subkoorbid = require('../controllers/subkoorbid.controller');
 const bidang = require('../controllers/bidang.controller');
 const peserta = require('../controllers/peserta.controller');
+const ajuan = require('../controllers/ajuanMagang.controller');
 const { restrict, isAdmin } = require('../middlewares/auth.middleware');
 
 router.post('/create-admin', admin.createAdmin);
@@ -99,5 +100,8 @@ router.get('/bidang/:id', restrict, isAdmin, bidang.getKuotaBidangById);
 
 // Get All Data Magang
 router.get('/data-magang', restrict, isAdmin, peserta.getAllPesertaMagang);
+
+// Get All Data Ajuan Magang
+router.get('/ajuan-magang', restrict, isAdmin, ajuan.getAllAjuanMagang);
 
 module.exports = router;
