@@ -25,6 +25,7 @@ router.put(
 );
 
 router.get('/kuota-bidang', bidang.getAllKuotaBidang);
+router.get('/ajuan-magang', ajuan.getPublicAjuanList);
 
 router.post(
   '/ajuan-magang',

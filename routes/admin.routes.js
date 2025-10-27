@@ -104,4 +104,12 @@ router.get('/data-magang', restrict, isAdmin, peserta.getAllPesertaMagang);
 // Get All Data Ajuan Magang
 router.get('/ajuan-magang', restrict, isAdmin, ajuan.getAllAjuanMagang);
 
+// Memberikan Balasan Ajuan Magang
+router.patch(
+  '/ajuan-magang/:id/status',
+  restrict,
+  isAdmin,
+  ajuan.updateStatusAjuan
+);
+
 module.exports = router;

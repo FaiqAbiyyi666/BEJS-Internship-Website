@@ -355,17 +355,17 @@ module.exports = {
       // C. Filter berdasarkan Pencarian
       if (search) {
         whereClause.OR = [
-          { temaMagang: { contains: search, mode: 'insensitive' } }, // mode: 'insensitive' untuk case-insensitive
-          { instansi: { contains: search, mode: 'insensitive' } },
-          { jurusan: { contains: search, mode: 'insensitive' } },
+          { temaMagang: { contains: search } },
+          { instansi: { contains: search } },
+          { jurusan: { contains: search } },
           {
             peserta: {
-              namaLengkap: { contains: search, mode: 'insensitive' },
+              namaLengkap: { contains: search },
             },
           },
           {
             bidang: {
-              nama: { contains: search, mode: 'insensitive' },
+              nama: { contains: search },
             },
           },
         ];
@@ -444,7 +444,9 @@ module.exports = {
   updateStatusAjuan: async (req, res, next) => {
     try {
       const { id: ajuanId } = req.params;
-      const { status, alasanPenolakan } = req.body;
+      // Hanya butuh 'status' dari body
+      const { status } = req.body;
+      // alasanPenolakan diabaikan jika tidak dikirim frontend
 
       if (!['DITERIMA', 'DITOLAK'].includes(status)) {
         return res.status(400).json({
@@ -466,7 +468,7 @@ module.exports = {
             },
           },
           bidang: {
-            select: { id: true, nama: true }, // Ambil ID bidang juga
+            select: { id: true, nama: true },
           },
         },
       });
@@ -481,7 +483,7 @@ module.exports = {
 
       // 2. Cek Kuota jika DITERIMA
       if (status === 'DITERIMA' && ajuan.statusUsulan !== 'DITERIMA') {
-        const kuotaTersedia = await cekKuota(ajuan.bidang.id); // Gunakan ajuan.bidang.id
+        const kuotaTersedia = await cekKuota(ajuan.bidang.id);
         if (!kuotaTersedia) {
           return res.status(400).json({
             status: false,
@@ -503,7 +505,7 @@ module.exports = {
         });
 
         await tx.pesertaMagang.update({
-          where: { id: ajuan.peserta.id }, // Gunakan ajuan.peserta.id
+          where: { id: ajuan.peserta.id },
           data: {
             status: statusPesertaEnum,
             ...(status === 'DITERIMA' && { bidangId: ajuan.bidang.id }),
@@ -524,14 +526,11 @@ module.exports = {
         emailBody = `<p>Halo ${namaPeserta},</p><p>Kami senang memberitahukan bahwa ajuan magang Anda untuk bidang <strong>${namaBidang}</strong> telah <strong>DITERIMA</strong>.</p><p>Informasi lebih lanjut mengenai jadwal dan surat penerimaan resmi akan kami kirimkan dalam email terpisah.</p><p>Terima kasih.</p>`;
       } else {
         emailSubject = 'Informasi Status Ajuan Magang Anda';
-        emailBody = `<p>Halo ${namaPeserta},</p><p>Setelah meninjau ajuan magang Anda untuk bidang <strong>${namaBidang}</strong>, dengan berat hati kami sampaikan bahwa ajuan Anda <strong>DITOLAK</strong>.</p>${
-          alasanPenolakan
-            ? `<p><strong>Alasan:</strong> ${alasanPenolakan}</p>`
-            : ''
-        }<p>Terima kasih atas minat Anda.</p>`;
+        // Email tanpa alasan penolakan
+        emailBody = `<p>Halo ${namaPeserta},</p><p>Setelah meninjau ajuan magang Anda untuk bidang <strong>${namaBidang}</strong>, dengan berat hati kami sampaikan bahwa ajuan Anda <strong>DITOLAK</strong>.</p><p>Terima kasih atas minat Anda.</p>`;
       }
 
-      // Kirim email (tanpa perlu 'await' agar respons lebih cepat)
+      // Kirim email
       sendEmail(emailPeserta, emailSubject, emailBody).catch((err) => {
         console.error('Gagal mengirim email notifikasi status:', err);
       });
@@ -542,6 +541,31 @@ module.exports = {
         data: null,
       });
     } catch (error) {
+      // Tangani error spesifik dari cekKuota atau P2025
+      if (error.message.includes('Kuota untuk bidang ini sudah penuh.')) {
+        return res
+          .status(400)
+          .json({ status: false, message: error.message, data: null });
+      }
+      if (
+        error.message.includes('Bidang tidak ditemukan') ||
+        error.message.includes('ID Bidang') ||
+        error.message.includes('Format ID Bidang')
+      ) {
+        return res.status(400).json({
+          status: false,
+          message: `Input Bidang Pilihan tidak valid. Detail: ${error.message}`,
+          data: null,
+        });
+      }
+      if (error.code === 'P2025') {
+        return res.status(404).json({
+          status: false,
+          message: 'Gagal update: Record terkait tidak ditemukan (P2025).',
+          data: null,
+        });
+      }
+      // Teruskan error lain
       next(error);
     }
   },
@@ -612,6 +636,84 @@ module.exports = {
         status: true,
         message: 'Surat penerimaan berhasil dikirim ke email peserta.',
         data: null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getPublicAjuanList: async (req, res, next) => {
+    try {
+      const { page = 1, limit = 10, status, bidang } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const take = parseInt(limit);
+      let whereClause = {};
+
+      if (
+        status &&
+        ['PENDING', 'DITERIMA', 'DITOLAK'].includes(status.toUpperCase())
+      ) {
+        whereClause.statusUsulan = status.toUpperCase();
+      }
+      if (bidang) {
+        whereClause.bidang = {
+          nama: { contains: bidang },
+        };
+      }
+
+      const [ajuanList, totalItems] = await prisma.$transaction([
+        prisma.ajuanMagang.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            temaMagang: true,
+            statusUsulan: true,
+            tglMulai: true,
+            tglSelesai: true,
+            createdAt: true, // <-- PASTIKAN INI ADA
+            peserta: {
+              select: {
+                namaLengkap: true,
+              },
+            },
+            bidang: {
+              select: {
+                nama: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          skip: skip,
+          take: take,
+        }),
+        prisma.ajuanMagang.count({ where: whereClause }),
+      ]);
+
+      // Transformasi data TANPA format TANGGAL dan PERIODE
+      const transformedData = ajuanList.map((ajuan) => ({
+        nama: ajuan.peserta.namaLengkap,
+        // --- TANGGAL DIHAPUS DARI SINI ---
+        tema: ajuan.temaMagang,
+        bidang: ajuan.bidang.nama,
+        status:
+          ajuan.statusUsulan === 'PENDING' ? 'Diproses' : ajuan.statusUsulan,
+        // Kirim tanggal mentah
+        tglMulai: ajuan.tglMulai,
+        tglSelesai: ajuan.tglSelesai,
+        createdAt: ajuan.createdAt, // <-- KIRIM INI MENTAH
+      }));
+
+      res.status(200).json({
+        status: true,
+        message: 'Daftar usulan magang publik berhasil diambil.',
+        data: transformedData, // Data sekarang berisi createdAt mentah
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalItems / take),
+          totalItems: totalItems,
+        },
       });
     } catch (error) {
       next(error);
