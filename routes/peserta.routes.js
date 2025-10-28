@@ -3,6 +3,7 @@ const router = express.Router();
 const peserta = require('../controllers/peserta.controller');
 const bidang = require('../controllers/bidang.controller');
 const ajuan = require('../controllers/ajuanMagang.controller');
+const kritikSaran = require('../controllers/kritikSaran.controller');
 const { restrict, isPesertaMagang } = require('../middlewares/auth.middleware');
 const {
   uploadPasFoto,
@@ -26,6 +27,7 @@ router.put(
 
 router.get('/kuota-bidang', bidang.getAllKuotaBidang);
 router.get('/ajuan-magang', ajuan.getPublicAjuanList);
+router.post('/kritik-saran', kritikSaran.createKritikSaran);
 
 router.post(
   '/ajuan-magang',

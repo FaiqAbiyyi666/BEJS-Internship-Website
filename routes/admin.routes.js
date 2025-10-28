@@ -5,6 +5,7 @@ const subkoorbid = require('../controllers/subkoorbid.controller');
 const bidang = require('../controllers/bidang.controller');
 const peserta = require('../controllers/peserta.controller');
 const ajuan = require('../controllers/ajuanMagang.controller');
+const kritikSaran = require('../controllers/kritikSaran.controller');
 const { restrict, isAdmin } = require('../middlewares/auth.middleware');
 const { uploadSuratPenerimaan } = require('../middlewares/upload.middleware');
 
@@ -124,5 +125,8 @@ router.post(
   uploadSuratPenerimaan,
   ajuan.kirimSuratPenerimaan
 );
+
+// URL akan menjadi /api/admin/kritik-saran
+router.get('/kritik-saran', restrict, isAdmin, kritikSaran.getAllKritikSaran);
 
 module.exports = router;
