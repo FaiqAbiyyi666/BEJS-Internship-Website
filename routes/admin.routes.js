@@ -6,6 +6,7 @@ const bidang = require('../controllers/bidang.controller');
 const peserta = require('../controllers/peserta.controller');
 const ajuan = require('../controllers/ajuanMagang.controller');
 const { restrict, isAdmin } = require('../middlewares/auth.middleware');
+const { uploadSuratPenerimaan } = require('../middlewares/upload.middleware');
 
 router.post('/create-admin', admin.createAdmin);
 
@@ -110,6 +111,18 @@ router.patch(
   restrict,
   isAdmin,
   ajuan.updateStatusAjuan
+);
+
+// Route untuk mengambil daftar peserta yang diterima
+router.get('/peserta-diterima', restrict, isAdmin, ajuan.getPesertaDiterima);
+
+// Route untuk mengirim surat (meng-upload)
+router.post(
+  '/kirim-surat',
+  restrict,
+  isAdmin,
+  uploadSuratPenerimaan,
+  ajuan.kirimSuratPenerimaan
 );
 
 module.exports = router;

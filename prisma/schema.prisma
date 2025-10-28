@@ -83,13 +83,27 @@ model AjuanMagang {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  pesertaId String        @map("peserta_id")
-  bidangId  String        @map("bidang_id")
+  pesertaId       String           @map("peserta_id")
+  bidangId        String           @map("bidang_id")
   // Jika PesertaMagang dihapus, AjuanMagang juga dihapus.
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  peserta         PesertaMagang    @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   // Jika KuotaBidang dihapus, JANGAN hapus ajuan (Restrict).
   // Ini melindungi data historis. Hapus ajuan dulu, baru bidang.
-  bidang    KuotaBidang   @relation(fields: [bidangId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  bidang          KuotaBidang      @relation(fields: [bidangId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  suratPenerimaan SuratPenerimaan?
+}
+
+model SuratPenerimaan {
+  id        String   @id @default(uuid())
+  noSurat   String   @map("no_surat")
+  fileUrl   String   @map("file_url") // URL dari ImageKit
+  fileId    String   @map("file_id") // ID file di ImageKit (untuk manajemen)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relasi one-to-one ke AjuanMagang
+  // Ini juga memastikan satu ajuan hanya punya satu surat penerimaan
+  ajuanId String      @unique @map("ajuan_id")
+  ajuan   AjuanMagang @relation(fields: [ajuanId], references: [id], onDelete: Cascade)
 }
 
 model KuotaBidang {

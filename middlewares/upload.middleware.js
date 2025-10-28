@@ -137,7 +137,48 @@ const uploadBerkasAjuan = (req, res, next) => {
   });
 };
 
+const uploadSuratPenerimaan = (req, res, next) => {
+  // Nama field 'suratPenerimaan' harus sesuai dengan yang dikirim dari FormData frontend
+  upload.single('suratPenerimaan')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ message: err.message });
+    }
+
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ message: 'File surat penerimaan (PDF) wajib diunggah.' });
+    }
+
+    try {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = path.extname(req.file.originalname);
+      const fileName = `suratpenerimaan-${uniqueSuffix}${ext}`;
+
+      // Proses upload ke ImageKit
+      const result = await imagekit.upload({
+        file: req.file.buffer, // Ambil file dari buffer
+        fileName: fileName,
+        folder: '/surat_penerimaan_magang/', // <-- Folder Sesuai Permintaan
+      });
+
+      // Simpan URL dan ID file ke req.body agar bisa diakses controller
+      req.body.fileUrl = result.url;
+      req.body.fileId = result.fileId;
+
+      // req.file.buffer akan otomatis diteruskan ke controller
+      next();
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ message: 'Gagal mengunggah surat penerimaan ke ImageKit.' });
+    }
+  });
+};
+
 module.exports = {
   uploadPasFoto,
   uploadBerkasAjuan,
+  uploadSuratPenerimaan,
 };

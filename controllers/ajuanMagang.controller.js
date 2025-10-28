@@ -47,6 +47,15 @@ const cekKuota = async (bidangId) => {
   }
 };
 
+const formatDate = (date) => {
+  if (!date) return 'N/A';
+  return new Date(date).toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+};
+
 module.exports = {
   createAjuanMagang: async (req, res, next) => {
     try {
@@ -627,72 +636,165 @@ module.exports = {
     }
   },
 
-  /**
-   * 5. ADMIN & SUBKOOR: Mengirim Surat Penerimaan Magang
-   */
-  kirimSuratPenerimaan: async (req, res, next) => {
+  getPesertaDiterima: async (req, res, next) => {
     try {
-      const { id: ajuanId } = req.params;
-
-      // 1. Ambil data lengkap untuk surat
-      const ajuan = await prisma.ajuanMagang.findUnique({
-        where: { id: ajuanId },
-        include: {
+      const daftarAjuanDiterima = await prisma.ajuanMagang.findMany({
+        where: {
+          statusUsulan: 'DITERIMA',
+          suratPenerimaan: null,
+        },
+        select: {
+          id: true,
           peserta: {
             select: {
+              id: true,
               namaLengkap: true,
-              nimNis: true,
-              instansi: true,
-              jurusan: true,
               user: { select: { email: true } },
             },
           },
           bidang: {
             select: { nama: true },
           },
-          // Sertakan data yang relevan untuk surat
-          tglMulai: true,
-          tglSelesai: true,
-          temaMagang: true,
+        },
+        orderBy: {
+          peserta: { namaLengkap: 'asc' },
+        },
+      });
+
+      // Format data agar sesuai dengan kebutuhan frontend
+      const formattedData = daftarAjuanDiterima.map((ajuan) => ({
+        ajuanId: ajuan.id,
+        pesertaId: ajuan.peserta.id,
+        nama: ajuan.peserta.namaLengkap,
+        email: ajuan.peserta.user.email,
+        bidang: ajuan.bidang.nama,
+      }));
+
+      res.status(200).json({
+        status: true,
+        message: 'Data peserta diterima berhasil diambil.',
+        data: formattedData,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * 5. ADMIN & SUBKOOR: Mengirim Surat Penerimaan Magang
+   */
+  kirimSuratPenerimaan: async (req, res, next) => {
+    try {
+      const { ajuanId, noSurat } = req.body;
+      const { fileUrl, fileId } = req.body;
+      const pdfBuffer = req.file.buffer;
+
+      if (!ajuanId || !noSurat || !fileUrl || !fileId || !pdfBuffer) {
+        return res.status(400).json({
+          status: false,
+          message:
+            'Data tidak lengkap. Pastikan ajuan, no surat, dan file disertakan.',
+        });
+      }
+
+      // 1. Ambil data ajuan untuk validasi dan info email
+      const ajuan = await prisma.ajuanMagang.findUnique({
+        where: { id: ajuanId },
+        select: {
+          id: true,
           statusUsulan: true,
+          tglMulai: true, // Ganti nama field jika beda (tglMulai -> tanggalMulai)
+          tglSelesai: true, // Ganti nama field jika beda
+          peserta: {
+            select: {
+              namaLengkap: true,
+              user: { select: { email: true } },
+            },
+          },
+          bidang: { select: { nama: true } },
+          suratPenerimaan: true, // Untuk cek duplikat
         },
       });
 
       // 2. Validasi
-      if (!ajuan || ajuan.statusUsulan !== 'DITERIMA') {
+      if (!ajuan) {
+        return res
+          .status(404)
+          .json({ status: false, message: 'Ajuan Magang tidak ditemukan.' });
+      }
+      if (ajuan.statusUsulan !== 'DITERIMA') {
         return res.status(400).json({
           status: false,
-          message:
-            'Gagal mengirim surat. Pastikan ajuan magang ini telah berstatus "DITERIMA".',
-          data: null,
+          message: 'Ajuan ini belum berstatus DITERIMA.',
+        });
+      }
+      if (ajuan.suratPenerimaan) {
+        return res.status(400).json({
+          status: false,
+          message: 'Surat penerimaan untuk ajuan ini sudah pernah dikirim.',
         });
       }
 
-      // 3. (Mock) Panggil service untuk generate PDF
-      // Pastikan service 'generateSuratPenerimaanPDF' Anda mengembalikan buffer
-      const pdfBuffer = await generateSuratPenerimaanPDF(ajuan);
+      // 3. Simpan data surat ke DB (Model baru Anda)
+      await prisma.suratPenerimaan.create({
+        data: {
+          noSurat: noSurat,
+          fileUrl: fileUrl,
+          fileId: fileId,
+          ajuanId: ajuanId,
+        },
+      });
 
-      // 4. Siapkan data email
       const emailPeserta = ajuan.peserta.user.email;
       const namaPeserta = ajuan.peserta.namaLengkap;
-      const emailSubject = 'Surat Penerimaan Magang Resmi';
-      const emailBody = `<p>Halo ${namaPeserta},</p><p>Terlampir adalah Surat Penerimaan Magang resmi Anda.</p><p>Harap baca dokumen terlampir dengan saksama untuk informasi mengenai tanggal mulai, penempatan bidang, dan instruksi lebih lanjut.</p><p>Kami tunggu kehadiran Anda.</p><p>Terima kasih.</p>`;
+      const emailSubject = `Selamat! Anda Diterima Magang di Diskominfo Sidoarjo 🎉`;
 
+      if (!emailPeserta) {
+        console.error(
+          `Email tidak ditemukan untuk peserta ${namaPeserta} (Ajuan ID: ${ajuanId})`
+        );
+        return res.status(201).json({
+          status: true,
+          message:
+            'Surat berhasil diunggah dan disimpan. PERINGATAN: Email gagal dikirim (email peserta tidak ditemukan).',
+        });
+      }
+
+      const templatePath = path.join(
+        __dirname,
+        '../views/sendInternLetter.ejs'
+      );
+
+      const templateData = {
+        namaLengkap: namaPeserta,
+        namaBidang: ajuan.bidang.nama,
+        tanggalMulai: formatDate(ajuan.tglMulai),
+        tanggalSelesai: formatDate(ajuan.tglSelesai),
+      };
+
+      const html = await ejs.renderFile(templatePath, templateData);
+
+      // 6. Siapkan attachment
       const attachment = {
-        filename: `Surat_Penerimaan_Magang_${namaPeserta.replace(
-          /\s+/g,
-          '_'
-        )}.pdf`,
+        filename: `Surat_Penerimaan_${namaPeserta.replace(/\s+/g, '_')}.pdf`,
         content: pdfBuffer,
         contentType: 'application/pdf',
       };
 
-      await sendEmail(emailPeserta, emailSubject, emailBody, [attachment]);
+      // 7. Kirim email (Pastikan 'sendMail' Anda support 'attachments')
+      await sendEmail({
+        from: process.env.SENDER_GMAIL,
+        to: emailPeserta,
+        subject: emailSubject,
+        html: html,
+        attachments: [attachment],
+      });
 
-      res.status(200).json({
+      res.status(201).json({
+        // 201 Created
         status: true,
-        message: 'Surat penerimaan berhasil dikirim ke email peserta.',
-        data: null,
+        message:
+          'Surat penerimaan berhasil diunggah, disimpan, dan dikirim ke email peserta.',
       });
     } catch (error) {
       next(error);
