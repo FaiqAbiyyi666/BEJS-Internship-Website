@@ -6,6 +6,7 @@ const bidang = require('../controllers/bidang.controller');
 const peserta = require('../controllers/peserta.controller');
 const ajuan = require('../controllers/ajuanMagang.controller');
 const kritikSaran = require('../controllers/kritikSaran.controller');
+const ulasan = require('../controllers/ulasanMagang.controller');
 const { restrict, isAdmin } = require('../middlewares/auth.middleware');
 const { uploadSuratPenerimaan } = require('../middlewares/upload.middleware');
 
@@ -126,7 +127,18 @@ router.post(
   ajuan.kirimSuratPenerimaan
 );
 
+// Route baru untuk mengambil RIWAYAT surat yang terkirim
+router.get(
+  '/riwayat-surat-penerimaan',
+  restrict,
+  isAdmin,
+  ajuan.getAllRiwayatSurat
+);
+
 // URL akan menjadi /api/admin/kritik-saran
 router.get('/kritik-saran', restrict, isAdmin, kritikSaran.getAllKritikSaran);
+
+// Endpoint untuk admin mengambil semua ulasan (memerlukan login admin)
+router.get('/ulasan-magang', restrict, isAdmin, ulasan.getAllUlasanForAdmin);
 
 module.exports = router;

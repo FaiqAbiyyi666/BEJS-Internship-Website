@@ -4,6 +4,7 @@ const peserta = require('../controllers/peserta.controller');
 const bidang = require('../controllers/bidang.controller');
 const ajuan = require('../controllers/ajuanMagang.controller');
 const kritikSaran = require('../controllers/kritikSaran.controller');
+const ulasan = require('../controllers/ulasanMagang.controller');
 const { restrict, isPesertaMagang } = require('../middlewares/auth.middleware');
 const {
   uploadPasFoto,
@@ -28,6 +29,8 @@ router.put(
 router.get('/kuota-bidang', bidang.getAllKuotaBidang);
 router.get('/ajuan-magang', ajuan.getPublicAjuanList);
 router.post('/kritik-saran', kritikSaran.createKritikSaran);
+router.get('/ulasan-magang', ulasan.getPublicUlasan);
+router.get('/ulasan-magang/all', ulasan.getAllUlasanForPublicPage);
 
 router.post(
   '/ajuan-magang',
@@ -50,5 +53,7 @@ router.get(
   isPesertaMagang,
   ajuan.getDetailAjuanMagang
 );
+
+router.post('/ulasan-magang', restrict, isPesertaMagang, ulasan.createUlasan);
 
 module.exports = router;

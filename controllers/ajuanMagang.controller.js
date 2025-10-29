@@ -801,6 +801,92 @@ module.exports = {
     }
   },
 
+  getAllRiwayatSurat: async (req, res, next) => {
+    try {
+      // Ambil filter dari query params frontend
+      const { search, bidang, date } = req.query;
+
+      const where = {};
+
+      // Filter 1: Cari Nama Peserta
+      if (search) {
+        where.ajuan = {
+          peserta: {
+            namaLengkap: { contains: search, mode: 'insensitive' },
+          },
+        };
+      }
+
+      // Filter 2: Filter Bidang
+      if (bidang && bidang !== 'Semua') {
+        where.ajuan = {
+          ...where.ajuan,
+          bidang: {
+            nama: bidang,
+          },
+        };
+      }
+
+      // Filter 3: Filter Tanggal Kirim (berdasarkan createdAt di SuratPenerimaan)
+      if (date) {
+        const startDate = new Date(date);
+        const endDate = new Date(date);
+        endDate.setDate(endDate.getDate() + 1); // Sampai akhir hari
+
+        where.createdAt = {
+          gte: startDate,
+          lt: endDate,
+        };
+      }
+
+      // Query ke model 'SuratPenerimaan', BUKAN 'AjuanMagang'
+      const riwayat = await prisma.suratPenerimaan.findMany({
+        where: where,
+        select: {
+          id: true,
+          noSurat: true,
+          createdAt: true, // Ini adalah Tanggal Kirim
+          fileUrl: true, // Untuk tombol Aksi "Lihat Surat"
+          ajuan: {
+            select: {
+              peserta: {
+                select: {
+                  namaLengkap: true,
+                  user: { select: { email: true } },
+                },
+              },
+              bidang: {
+                select: { nama: true },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      // Format data agar sesuai dengan kebutuhan tabel frontend
+      const formattedData = riwayat.map((item) => ({
+        id: item.id,
+        namaPeserta: item.ajuan.peserta.namaLengkap,
+        email: item.ajuan.peserta.user.email,
+        bidang: item.ajuan.bidang.nama,
+        noSurat: item.noSurat,
+        tanggal: item.createdAt, // Kirim sebagai ISO string
+        fileUrl: item.fileUrl,
+      }));
+
+      res.status(200).json({
+        status: true,
+        message: 'Riwayat surat berhasil diambil.',
+        data: formattedData,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   getPublicAjuanList: async (req, res, next) => {
     try {
       const { page = 1, limit = 10, status, bidang } = req.query;
