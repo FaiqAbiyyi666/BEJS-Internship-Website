@@ -187,11 +187,15 @@ model Sertifikat {
   id           String   @id @default(uuid())
   noSertifikat String   @map("no_sertifikat")
   nilai        Int
+  bidang       String   
+  fileUrl      String   @map("file_url") 
+  tglMulai     DateTime @map("tgl_mulai") @db.Date
+  tglSelesai   DateTime @map("tgl_selesai") @db.Date
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   pesertaId String        @map("peserta_id")
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
 
 model BerkasMagang {

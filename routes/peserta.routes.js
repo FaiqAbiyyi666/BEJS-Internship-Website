@@ -5,6 +5,7 @@ const bidang = require('../controllers/bidang.controller');
 const ajuan = require('../controllers/ajuanMagang.controller');
 const kritikSaran = require('../controllers/kritikSaran.controller');
 const ulasan = require('../controllers/ulasanMagang.controller');
+const sertifikat = require('../controllers/sertifikat.controller');
 const { restrict, isPesertaMagang } = require('../middlewares/auth.middleware');
 const {
   uploadPasFoto,
@@ -55,5 +56,7 @@ router.get(
 );
 
 router.post('/ulasan-magang', restrict, isPesertaMagang, ulasan.createUlasan);
+
+router.get('/sertifikat', restrict, isPesertaMagang, sertifikat.getSertifikat);
 
 module.exports = router;

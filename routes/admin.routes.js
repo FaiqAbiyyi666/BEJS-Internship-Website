@@ -7,8 +7,12 @@ const peserta = require('../controllers/peserta.controller');
 const ajuan = require('../controllers/ajuanMagang.controller');
 const kritikSaran = require('../controllers/kritikSaran.controller');
 const ulasan = require('../controllers/ulasanMagang.controller');
+const sertifikat = require('../controllers/sertifikat.controller');
 const { restrict, isAdmin } = require('../middlewares/auth.middleware');
-const { uploadSuratPenerimaan } = require('../middlewares/upload.middleware');
+const {
+  uploadSuratPenerimaan,
+  uploadSertifikat,
+} = require('../middlewares/upload.middleware');
 
 router.post('/create-admin', admin.createAdmin);
 
@@ -140,5 +144,29 @@ router.get('/kritik-saran', restrict, isAdmin, kritikSaran.getAllKritikSaran);
 
 // Endpoint untuk admin mengambil semua ulasan (memerlukan login admin)
 router.get('/ulasan-magang', restrict, isAdmin, ulasan.getAllUlasanForAdmin);
+
+// Endpoint untuk admin mengirim sertifikat
+router.post(
+  '/kirim-sertifikat',
+  restrict,
+  isAdmin,
+  uploadSertifikat,
+  sertifikat.kirimSertifikat
+);
+
+router.get(
+  '/sertifikat/history',
+  restrict,
+  isAdmin,
+  sertifikat.getHistorySertifikat
+);
+
+// (Tambahkan rute ini ke router peserta Anda)
+router.get(
+  '/sertifikat-list',
+  restrict,
+  isAdmin,
+  sertifikat.getPesertaForSertifikat
+);
 
 module.exports = router;

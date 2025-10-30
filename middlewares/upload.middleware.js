@@ -177,8 +177,56 @@ const uploadSuratPenerimaan = (req, res, next) => {
   });
 };
 
+const uploadSertifikat = (req, res, next) => {
+  // Nama field 'file' harus sesuai dengan yang dikirim dari FormData frontend
+  upload.single('file')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ message: err.message });
+    }
+
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ message: 'File sertifikat (PDF) wajib diunggah.' });
+    }
+
+    // Validasi ganda untuk memastikan ini PDF
+    if (req.file.mimetype !== 'application/pdf') {
+      return res.status(400).json({
+        message:
+          'Jenis file tidak valid. Hanya PDF yang diperbolehkan untuk sertifikat.',
+      });
+    }
+
+    try {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = path.extname(req.file.originalname);
+      const fileName = `sertifikat-${uniqueSuffix}${ext}`;
+
+      // Proses upload ke ImageKit
+      const result = await imagekit.upload({
+        file: req.file.buffer, // Ambil file dari buffer
+        fileName: fileName,
+        folder: '/sertifikat/', // Folder tujuan di ImageKit
+      });
+
+      // Simpan URL hasil upload ke req.body agar bisa diakses controller
+      // Sesuai permintaan Anda sebelumnya, kita hanya menyimpan fileUrl
+      req.body.fileUrl = result.url;
+
+      next();
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ message: 'Gagal mengunggah sertifikat ke ImageKit.' });
+    }
+  });
+};
+
 module.exports = {
   uploadPasFoto,
   uploadBerkasAjuan,
   uploadSuratPenerimaan,
+  uploadSertifikat,
 };
