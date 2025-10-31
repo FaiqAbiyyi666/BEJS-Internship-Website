@@ -33,8 +33,6 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Relasi: User adalah parent. Aturan onDelete ditempatkan
-  // pada model yang memegang foreign key (PesertaMagang, Admin, dll).
   pesertaMagang        PesertaMagang?
   admin                Admin?
   subKoordinatorBidang SubKoordinatorBidang?
@@ -59,9 +57,9 @@ model PesertaMagang {
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
   userId     String               @unique @map("user_id")
-  bidangId   String?              @map("bidang_id") // ⬅️ Tambahkan ini (opsional)
-  user       User                 @relation(fields: [userId], references: [id])
-  bidang     KuotaBidang?         @relation(fields: [bidangId], references: [id]) // ⬅️ Relasi opsional
+  bidangId   String?              @map("bidang_id")
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bidang     KuotaBidang?         @relation(fields: [bidangId], references: [id], onUpdate: Cascade, onDelete: SetNull)
   ajuan      AjuanMagang[]
   logbook    Logbook[]
   laporan    LaporanHasilMagang[]
@@ -76,19 +74,16 @@ model AjuanMagang {
   jenjangPendidikan String   @map("jenjang_pendidikan")
   instansi          String
   jurusan           String
-  tglMulai          DateTime @map("tgl_mulai")
-  tglSelesai        DateTime @map("tgl_selesai")
+  tglMulai          DateTime @map("tgl_mulai") @db.Date
+  tglSelesai        DateTime @map("tgl_selesai") @db.Date
   temaMagang        String   @map("tema_magang")
-  statusUsulan      String   @map("status_usulan")
+  statusUsulan      String   @map("status_usulan") // 'DISETUJUI', 'PENDING', 'DITOLAK'
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
   pesertaId       String           @map("peserta_id")
   bidangId        String           @map("bidang_id")
-  // Jika PesertaMagang dihapus, AjuanMagang juga dihapus.
   peserta         PesertaMagang    @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  // Jika KuotaBidang dihapus, JANGAN hapus ajuan (Restrict).
-  // Ini melindungi data historis. Hapus ajuan dulu, baru bidang.
   bidang          KuotaBidang      @relation(fields: [bidangId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   suratPenerimaan SuratPenerimaan?
 }
@@ -96,12 +91,10 @@ model AjuanMagang {
 model SuratPenerimaan {
   id        String   @id @default(uuid())
   noSurat   String   @map("no_surat")
-  fileUrl   String   @map("file_url") // URL dari ImageKit
-  fileId    String   @map("file_id") // ID file di ImageKit (untuk manajemen)
+  fileUrl   String   @map("file_url")
+  fileId    String   @map("file_id")
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Relasi one-to-one ke AjuanMagang
-  // Ini juga memastikan satu ajuan hanya punya satu surat penerimaan
   ajuanId String      @unique @map("ajuan_id")
   ajuan   AjuanMagang @relation(fields: [ajuanId], references: [id], onDelete: Cascade)
 }
@@ -113,7 +106,6 @@ model KuotaBidang {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Parent. Aturan onDelete ada di AjuanMagang, SubKoordinatorBidang, PesertaMagang
   ajuan          AjuanMagang[]
   subkoordinator SubKoordinatorBidang[]
   PesertaMagang  PesertaMagang[]
@@ -122,7 +114,7 @@ model KuotaBidang {
 model Admin {
   id        String   @id @default(uuid())
   userId    String   @unique @map("user_id")
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 }
@@ -133,21 +125,24 @@ model SubKoordinatorBidang {
   userId   String @unique @map("user_id")
   bidangId String @map("bidang_id")
 
-  user      User        @relation(fields: [userId], references: [id])
-  bidang    KuotaBidang @relation(fields: [bidangId], references: [id])
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bidang    KuotaBidang @relation(fields: [bidangId], references: [id], onUpdate: Cascade, onDelete: Restrict)
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime    @updatedAt @map("updated_at")
 }
 
 model Logbook {
   id        String   @id @default(uuid())
-  tanggal   DateTime
-  deskripsi String
+  tanggal   DateTime @db.Date
+  deskripsi String   @default("") @db.Text
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   pesertaId String        @map("peserta_id")
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  // Memastikan 1 peserta hanya bisa 1 log per tanggal
+  @@unique([pesertaId, tanggal])
 }
 
 model KritikSaran {
@@ -159,7 +154,7 @@ model KritikSaran {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   userId String? @map("user_id")
-  user   User?   @relation(fields: [userId], references: [id])
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 }
 
 model UlasanMagang {
@@ -170,7 +165,7 @@ model UlasanMagang {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   userId String @map("user_id")
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
 
 model LaporanHasilMagang {
@@ -180,15 +175,15 @@ model LaporanHasilMagang {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   pesertaId String        @map("peserta_id")
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
 
 model Sertifikat {
   id           String   @id @default(uuid())
   noSertifikat String   @map("no_sertifikat")
   nilai        Int
-  bidang       String   
-  fileUrl      String   @map("file_url") 
+  bidang       String
+  fileUrl      String   @map("file_url")
   tglMulai     DateTime @map("tgl_mulai") @db.Date
   tglSelesai   DateTime @map("tgl_selesai") @db.Date
   createdAt    DateTime @default(now()) @map("created_at")
@@ -210,7 +205,7 @@ model BerkasMagang {
   updatedAt            DateTime @updatedAt @map("updated_at")
 
   pesertaId String        @map("peserta_id")
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id])
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
 
 model Notifikasi {
@@ -221,5 +216,5 @@ model Notifikasi {
   createdAt DateTime @default(now()) @map("created_at")
 
   userId String @map("user_id")
-  user   User   @relation(fields: [userId], references: [id])
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }

@@ -11,7 +11,14 @@ const PORT = process.env.PORT || 3000;
 const corsOptions = {
   origin: 'http://localhost:5173', // Ganti jika port frontend Anda berbeda
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'], // Gunakan metode standar HTTP
-  allowedHeaders: ['Content-Type', 'Authorization'], // ✅ IZINKAN HEADER INI
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'Cache-Control',
+  ], // ✅ IZINKAN HEADER INI
   credentials: true,
 };
 

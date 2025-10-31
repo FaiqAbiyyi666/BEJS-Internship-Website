@@ -8,6 +8,7 @@ const ajuan = require('../controllers/ajuanMagang.controller');
 const kritikSaran = require('../controllers/kritikSaran.controller');
 const ulasan = require('../controllers/ulasanMagang.controller');
 const sertifikat = require('../controllers/sertifikat.controller');
+const logbook = require('../controllers/logbook.controller');
 const { restrict, isAdmin } = require('../middlewares/auth.middleware');
 const {
   uploadSuratPenerimaan,
@@ -161,12 +162,15 @@ router.get(
   sertifikat.getHistorySertifikat
 );
 
-// (Tambahkan rute ini ke router peserta Anda)
 router.get(
   '/sertifikat-list',
   restrict,
   isAdmin,
   sertifikat.getPesertaForSertifikat
 );
+
+router.get('/logbook/all', restrict, isAdmin, logbook.getAllLogbooks);
+
+router.get('/logbook/:id', restrict, isAdmin, logbook.getLogbookById);
 
 module.exports = router;
