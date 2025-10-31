@@ -203,15 +203,12 @@ const uploadSertifikat = (req, res, next) => {
       const ext = path.extname(req.file.originalname);
       const fileName = `sertifikat-${uniqueSuffix}${ext}`;
 
-      // Proses upload ke ImageKit
       const result = await imagekit.upload({
-        file: req.file.buffer, // Ambil file dari buffer
+        file: req.file.buffer,
         fileName: fileName,
-        folder: '/sertifikat/', // Folder tujuan di ImageKit
+        folder: '/sertifikat/',
       });
 
-      // Simpan URL hasil upload ke req.body agar bisa diakses controller
-      // Sesuai permintaan Anda sebelumnya, kita hanya menyimpan fileUrl
       req.body.fileUrl = result.url;
 
       next();
@@ -224,9 +221,50 @@ const uploadSertifikat = (req, res, next) => {
   });
 };
 
+const uploadLaporanAkhir = (req, res, next) => {
+  upload.single('fileLaporan')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ msg: err.message });
+    }
+    if (!req.file) {
+      return res.status(400).json({ msg: 'Tidak ada file yang diunggah.' });
+    }
+
+    const { id: userId } = req.user;
+    if (!userId) {
+      return res.status(401).json({ msg: 'Unauthorized' });
+    }
+
+    try {
+      const ext = path.extname(req.file.originalname);
+      const fileName = `laporan_akhir_${userId}_${Date.now()}${ext}`;
+
+      const response = await imagekit.upload({
+        file: req.file.buffer,
+        fileName: fileName,
+        folder: '/laporan_akhir/',
+        useUniqueFileName: false,
+      });
+
+      req.imagekit_file_info = {
+        fileUrl: response.url,
+        fileId: response.fileId,
+      };
+
+      next();
+    } catch (error) {
+      console.error('ImageKit Upload Error:', error);
+      return res
+        .status(500)
+        .json({ msg: 'Gagal mengunggah file', error: error.message });
+    }
+  });
+};
+
 module.exports = {
   uploadPasFoto,
   uploadBerkasAjuan,
   uploadSuratPenerimaan,
   uploadSertifikat,
+  uploadLaporanAkhir,
 };

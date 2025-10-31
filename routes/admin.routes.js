@@ -9,6 +9,7 @@ const kritikSaran = require('../controllers/kritikSaran.controller');
 const ulasan = require('../controllers/ulasanMagang.controller');
 const sertifikat = require('../controllers/sertifikat.controller');
 const logbook = require('../controllers/logbook.controller');
+const laporanAkhir = require('../controllers/laporanAkhir.controller');
 const { restrict, isAdmin } = require('../middlewares/auth.middleware');
 const {
   uploadSuratPenerimaan,
@@ -172,5 +173,26 @@ router.get(
 router.get('/logbook/all', restrict, isAdmin, logbook.getAllLogbooks);
 
 router.get('/logbook/:id', restrict, isAdmin, logbook.getLogbookById);
+
+router.get(
+  '/laporan-akhir/pending',
+  restrict,
+  isAdmin,
+  laporanAkhir.getLaporanMasuk
+);
+
+router.get(
+  '/laporan-akhir/history',
+  restrict,
+  isAdmin,
+  laporanAkhir.getLaporanRiwayat
+);
+
+router.patch(
+  '/laporan-akhir/respond/:id',
+  restrict,
+  isAdmin,
+  laporanAkhir.responseLaporan
+);
 
 module.exports = router;

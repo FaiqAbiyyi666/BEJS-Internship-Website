@@ -7,10 +7,12 @@ const kritikSaran = require('../controllers/kritikSaran.controller');
 const ulasan = require('../controllers/ulasanMagang.controller');
 const sertifikat = require('../controllers/sertifikat.controller');
 const logbook = require('../controllers/logbook.controller');
+const laporanAkhir = require('../controllers/laporanAkhir.controller');
 const { restrict, isPesertaMagang } = require('../middlewares/auth.middleware');
 const {
   uploadPasFoto,
   uploadBerkasAjuan,
+  uploadLaporanAkhir,
 } = require('../middlewares/upload.middleware');
 
 router.get(
@@ -43,7 +45,7 @@ router.post(
 );
 
 router.get(
-  '/ajuan-magang',
+  '/ajuan-magang-saya',
   restrict,
   isPesertaMagang,
   ajuan.getAjuanMagangByPeserta
@@ -67,6 +69,21 @@ router.post(
   restrict,
   isPesertaMagang,
   logbook.createOrUpdateLogbook
+);
+
+router.post(
+  '/laporan-akhir',
+  restrict,
+  isPesertaMagang,
+  uploadLaporanAkhir,
+  laporanAkhir.submitLaporan
+);
+
+router.get(
+  '/laporan-akhir/history',
+  restrict,
+  isPesertaMagang,
+  laporanAkhir.getMyLaporanHistory
 );
 
 module.exports = router;
