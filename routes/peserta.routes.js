@@ -8,6 +8,7 @@ const ulasan = require('../controllers/ulasanMagang.controller');
 const sertifikat = require('../controllers/sertifikat.controller');
 const logbook = require('../controllers/logbook.controller');
 const laporanAkhir = require('../controllers/laporanAkhir.controller');
+const dashboard = require('../controllers/dashboard.controller');
 const { restrict, isPesertaMagang } = require('../middlewares/auth.middleware');
 const {
   uploadPasFoto,
@@ -84,6 +85,13 @@ router.get(
   restrict,
   isPesertaMagang,
   laporanAkhir.getMyLaporanHistory
+);
+
+router.get(
+  '/dashboard',
+  restrict,
+  isPesertaMagang,
+  dashboard.getPesertaProfileDashboard
 );
 
 module.exports = router;

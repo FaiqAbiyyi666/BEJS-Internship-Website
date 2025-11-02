@@ -10,6 +10,7 @@ const ulasan = require('../controllers/ulasanMagang.controller');
 const sertifikat = require('../controllers/sertifikat.controller');
 const logbook = require('../controllers/logbook.controller');
 const laporanAkhir = require('../controllers/laporanAkhir.controller');
+const dashboard = require('../controllers/dashboard.controller');
 const { restrict, isAdmin } = require('../middlewares/auth.middleware');
 const {
   uploadSuratPenerimaan,
@@ -194,5 +195,7 @@ router.patch(
   isAdmin,
   laporanAkhir.responseLaporan
 );
+
+router.get('/dashboard-admin', restrict, isAdmin, dashboard.getDashboardStats);
 
 module.exports = router;
