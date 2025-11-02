@@ -6,13 +6,11 @@ const sendEmail = require('../utils/sendEmail');
 module.exports = {
   getAuthenticatedUserProfile: async (req, res, next) => {
     try {
-      // Ambil ID pengguna dari token yang sudah diverifikasi oleh middleware 'restrict'
       const { id } = req.user;
 
       const peserta = await prisma.pesertaMagang.findFirst({
         where: { userId: id },
         include: {
-          // Sertakan data dari tabel User untuk mendapatkan email
           user: {
             select: {
               email: true,
@@ -30,13 +28,12 @@ module.exports = {
         });
       }
 
-      // Gabungkan data untuk respons yang lebih rapi
       const profileData = {
-        ...peserta, // Ambil semua data dari PesertaMagang (namaLengkap, nik, dll)
-        email: peserta.user.email, // Tambahkan email
-        role: peserta.user.role, // Tambahkan role
+        ...peserta,
+        email: peserta.user.email,
+        role: peserta.user.role,
       };
-      delete profileData.user; // Hapus objek user yang bersarang
+      delete profileData.user;
 
       return res.status(200).json({
         status: true,
@@ -70,9 +67,9 @@ module.exports = {
           email: user.email,
           role: user.role,
           namaLengkap: user.pesertaMagang?.namaLengkap || null,
-          nimNis: user.pesertaMagang?.nimNis || null, // ✅ field sesuai schema
+          nimNis: user.pesertaMagang?.nimNis || null,
           jurusan: user.pesertaMagang?.jurusan || null,
-          instansi: user.pesertaMagang?.instansi || null, // ✅ field sesuai schema
+          instansi: user.pesertaMagang?.instansi || null,
           tglLahir: user.pesertaMagang?.tglLahir || null,
           noTelepon: user.pesertaMagang?.noTelepon || null,
           nik: user.pesertaMagang?.nik || null,
@@ -88,11 +85,10 @@ module.exports = {
 
   updateUserProfile: async (req, res, next) => {
     try {
-      const { id } = req.user; // Diambil dari token oleh middleware otentikasi
+      const { id } = req.user;
       const { namaLengkap, noTelepon, nimNis, instansi, jurusan, alamat } =
         req.body;
 
-      // Cari data peserta berdasarkan userId
       const peserta = await prisma.pesertaMagang.findFirst({
         where: { userId: id },
       });
@@ -105,7 +101,6 @@ module.exports = {
         });
       }
 
-      // --- VALIDASI INPUT ---
       if (
         !namaLengkap ||
         !noTelepon ||
@@ -119,7 +114,7 @@ module.exports = {
           message: 'Semua kolom yang dapat diedit wajib diisi',
         });
       }
-      const phoneRegex = /^0[8]\d{8,11}$/; // Regex umum untuk nomor HP Indonesia
+      const phoneRegex = /^0[8]\d{8,11}$/;
       if (!phoneRegex.test(noTelepon)) {
         return res.status(400).json({
           status: false,
@@ -133,7 +128,6 @@ module.exports = {
         });
       }
 
-      // Siapkan data yang akan diupdate
       const dataToUpdate = {
         namaLengkap,
         noTelepon,
@@ -143,13 +137,10 @@ module.exports = {
         alamat,
       };
 
-      // Cek apakah middleware uploadPasFoto menemukan URL foto baru dari ImageKit
       if (req.body.pasFotoUrl) {
-        // Simpan URL dari ImageKit ke kolom database 'pasFoto'
         dataToUpdate.pasFoto = req.body.pasFotoUrl;
       }
 
-      // Lakukan update data
       const updatedPeserta = await prisma.pesertaMagang.update({
         where: { id: peserta.id },
         data: dataToUpdate,
@@ -167,7 +158,6 @@ module.exports = {
 
   getAllPesertaMagang: async (req, res, next) => {
     try {
-      // 1. Query (Ini sudah benar dari perbaikan sebelumnya)
       const users = await prisma.user.findMany({
         where: {
           role: Role.peserta_magang,
@@ -201,7 +191,7 @@ module.exports = {
           message: 'Belum ada data peserta magang.',
           data: [],
         });
-      } // --- INI PERBAIKANNYA --- // 2. Format data agar COCOK DENGAN FRONTEND (Lebih Aman)
+      }
 
       const allPeserta = users.map((user) => {
         const profile = user.pesertaMagang || {};
@@ -211,17 +201,17 @@ module.exports = {
         const sertifikat = profile.sertifikat && profile.sertifikat.length > 0;
 
         return {
-          id: user.id, // Ini adalah userId, frontend menggunakan ini sebagai selectedPeserta.id
+          id: user.id,
           foto: profile.pasFoto || '/default-profile.png',
           nama: profile.namaLengkap || 'Peserta Baru (Belum Isi Profil)',
           nim: profile.nimNis || null,
           email: user.email,
           instansi: profile.instansi || null,
-          jurusan: profile.jurusan || null, // <-- TAMBAHKAN JURUSAN (Anda punya ini di form)
-          noTelepon: profile.noTelepon || null, // <-- TAMBAHKAN NO TELP
-          nik: profile.nik || null, // <-- TAMBAHKAN NIK
-          alamat: profile.alamat || null, // <-- TAMBAHKAN ALAMAT
-          tglLahir: profile.tglLahir || null, // <-- TAMBAHKAN TGL LAHIR
+          jurusan: profile.jurusan || null,
+          noTelepon: profile.noTelepon || null,
+          nik: profile.nik || null,
+          alamat: profile.alamat || null,
+          tglLahir: profile.tglLahir || null,
           bidang: bidang.nama || 'Belum Mendaftar Bidang',
           periodeMulai: ajuan.tglMulai || '-',
           periodeSelesai: ajuan.tglSelesai || '-',
@@ -229,9 +219,8 @@ module.exports = {
           statusMagang: profile.status || 'N/A',
           sertifikat: sertifikat ? 'Sudah Diterbitkan' : 'Belum Diterbitkan',
 
-          // --- PRASYARAT PENTING ---
-          bidangId: bidang.id || null, // Kirim ID bidang
-          ajuanId: ajuan.id || null, // Kirim ID ajuan
+          bidangId: bidang.id || null,
+          ajuanId: ajuan.id || null,
         };
       }); // -------------------------
       return res.status(200).json({

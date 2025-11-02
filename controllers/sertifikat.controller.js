@@ -1,20 +1,17 @@
-// Import dependency yang diperlukan di atas file Anda
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const sendEmail = require('../utils/sendEmail');
 const ejs = require('ejs');
 const path = require('path');
 
-const ITEMS_PER_PAGE = 10; // Tentukan jumlah item per halaman untuk admin
+const ITEMS_PER_PAGE = 10;
 
 module.exports = {
   kirimSertifikat: async (req, res, next) => {
     try {
-      // 1. Ambil data dari form (req.body)
       const { pesertaId, noSertifikat, nilai } = req.body;
-      const { fileUrl } = req.body; // Dari middleware
+      const { fileUrl } = req.body;
 
-      // 2. Validasi input
       if (!pesertaId || !noSertifikat || !nilai || !fileUrl) {
         return res.status(400).json({
           status: false,
@@ -23,14 +20,13 @@ module.exports = {
         });
       }
 
-      // 3. Cari AjuanMagang yang DITERIMA
       const ajuanDiterima = await prisma.ajuanMagang.findFirst({
         where: {
           pesertaId: pesertaId,
           statusUsulan: 'DITERIMA',
         },
         include: {
-          bidang: true, // Kita perlu nama bidang
+          bidang: true,
         },
       });
 
@@ -43,15 +39,14 @@ module.exports = {
         });
       }
 
-      // 4. Simpan ke Database
       const newSertifikat = await prisma.sertifikat.create({
         data: {
           noSertifikat: noSertifikat,
           nilai: parseInt(nilai, 10),
-          bidang: ajuanDiterima.bidang.nama, // Diambil dari ajuan
+          bidang: ajuanDiterima.bidang.nama,
           fileUrl: fileUrl,
-          tglMulai: ajuanDiterima.tglMulai, // Diambil dari ajuan
-          tglSelesai: ajuanDiterima.tglSelesai, // Diambil dari ajuan
+          tglMulai: ajuanDiterima.tglMulai,
+          tglSelesai: ajuanDiterima.tglSelesai,
           peserta: {
             connect: { id: pesertaId },
           },
@@ -67,7 +62,6 @@ module.exports = {
         },
       });
 
-      // 5. Kirim Email Notifikasi
       const { email: emailPeserta } = newSertifikat.peserta.user;
       const { namaLengkap: namaPeserta } = newSertifikat.peserta;
 
@@ -83,7 +77,6 @@ module.exports = {
         });
       }
 
-      // Persiapan data EJS
       const downloadLink = `${process.env.CLIENT_BASE_URL}/dashboard/sertifikat`;
       const emailSubject = 'Sertifikat Magang Anda Telah Terbit! 📬';
       const templateData = {
@@ -91,12 +84,12 @@ module.exports = {
         namaBidang: newSertifikat.bidang,
         downloadLink: downloadLink,
       };
+
       const templatePath = path.join(
         __dirname,
-        '../views/sendNotifCertificate.ejs' // Path Anda
+        '../views/sendNotifCertificate.ejs'
       );
 
-      // Render dan kirim email
       ejs.renderFile(templatePath, templateData, (err, html) => {
         if (err) {
           console.error('Gagal me-render EJS untuk email sertifikat:', err);
@@ -115,7 +108,6 @@ module.exports = {
         }
       });
 
-      // 6. Kirim Respon Sukses
       res.status(201).json({
         status: true,
         message:
@@ -142,13 +134,10 @@ module.exports = {
   getHistorySertifikat: async (req, res, next) => {
     try {
       const { page = 1, search, bidang, tanggal } = req.query;
-
       const skip = (parseInt(page, 10) - 1) * ITEMS_PER_PAGE;
 
-      // 1. Tentukan Kondisi Filter (where)
       let where = {};
 
-      // Filter Pencarian
       if (search) {
         where.OR = [
           { peserta: { namaLengkap: { contains: search } } },
@@ -156,12 +145,10 @@ module.exports = {
         ];
       }
 
-      // Filter Bidang (disimpan sebagai string di Sertifikat, jadi filter 'equals')
       if (bidang) {
         where.bidang = { equals: bidang };
       }
 
-      // Filter Tanggal (berdasarkan tanggal dibuatnya sertifikat)
       if (tanggal) {
         const tgl = new Date(tanggal);
         const tglBesok = new Date(tgl);
@@ -173,22 +160,19 @@ module.exports = {
         };
       }
 
-      // 2. Hitung total data untuk paginasi
       const totalItems = await prisma.sertifikat.count({
         where,
       });
       const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
-      // 3. Ambil data sertifikat dengan paginasi dan filter
       const history = await prisma.sertifikat.findMany({
         where,
         skip,
         take: ITEMS_PER_PAGE,
         orderBy: {
-          createdAt: 'desc', // Tampilkan yang terbaru dulu
+          createdAt: 'desc',
         },
         include: {
-          // Kita perlu nama peserta untuk ditampilkan di tabel
           peserta: {
             select: {
               namaLengkap: true,
@@ -197,7 +181,6 @@ module.exports = {
         },
       });
 
-      // 4. Kirim respon
       res.status(200).json({
         status: true,
         message: 'Riwayat sertifikat berhasil diambil.',
@@ -220,16 +203,14 @@ module.exports = {
 
   getSertifikat: async (req, res, next) => {
     try {
-      // 1. Ambil 'id' user dari payload token (req.user)
-      const userIdFromToken = req.user.id; // Asumsi payload berisi 'id'
+      const userIdFromToken = req.user.id;
 
-      // 2. Cari data PesertaMagang menggunakan userId
       const peserta = await prisma.pesertaMagang.findUnique({
         where: {
           userId: userIdFromToken,
         },
         select: {
-          id: true, // Kita hanya perlu ID-nya
+          id: true,
         },
       });
 
@@ -241,10 +222,9 @@ module.exports = {
         });
       }
 
-      // 3. Gunakan peserta.id untuk query sertifikat
       const sertifikatList = await prisma.sertifikat.findMany({
         where: {
-          pesertaId: peserta.id, // Gunakan ID peserta yang baru ditemukan
+          pesertaId: peserta.id,
         },
         orderBy: {
           createdAt: 'desc',
@@ -270,7 +250,7 @@ module.exports = {
     try {
       const peserta = await prisma.pesertaMagang.findMany({
         where: {
-          status: 'APPROVED', // Hanya ambil peserta yang sudah LULUS/APPROVED
+          status: 'APPROVED',
         },
         select: {
           id: true,

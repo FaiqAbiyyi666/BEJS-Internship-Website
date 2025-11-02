@@ -3,7 +3,6 @@ const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
 
 module.exports = {
-  // Create Sub Koordinator Akun
   createSubKoordinator: async (req, res, next) => {
     try {
       const { email, password, nama, bidangId } = req.body;
@@ -16,7 +15,6 @@ module.exports = {
         });
       }
 
-      // Cek email unik
       const existEmail = await prisma.user.findUnique({ where: { email } });
       if (existEmail) {
         return res.status(409).json({
@@ -26,7 +24,6 @@ module.exports = {
         });
       }
 
-      // Cek nama unik
       const existNama = await prisma.subKoordinatorBidang.findFirst({
         where: { nama },
       });
@@ -67,8 +64,7 @@ module.exports = {
       next(error);
     }
   },
-  
-  // GET semua sub koordinator (hanya name, email, bidang)
+
   getAllSubkoorbid: async (req, res, next) => {
     try {
       const subs = await prisma.subKoordinatorBidang.findMany({
@@ -80,7 +76,7 @@ module.exports = {
       });
 
       const result = subs.map((s) => ({
-        id: s.id, // id dari tabel SubKoordinatorBidang
+        id: s.id,
         userId: s.userId,
         nama: s.nama,
         email: s.user?.email || null,
@@ -97,7 +93,6 @@ module.exports = {
     }
   },
 
-  // GET sub koordinator by ID (sub.id)
   getSubkoorbidById: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -137,14 +132,12 @@ module.exports = {
     }
   },
 
-  // UPDATE sub koordinator (admin bisa update siapa saja, sub koor hanya bisa update dirinya)
   updateProfileSubKoordinator: async (req, res, next) => {
     try {
-      const { id } = req.params; // id = sub.id (SubKoordinatorBidang.id)
+      const { id } = req.params;
       const { nama, email, password, bidangId } = req.body;
-      const requester = req.user; // dari middleware restrict (decoded token contains id and role)
+      const requester = req.user;
 
-      // Cari sub koordinator by id
       const sub = await prisma.subKoordinatorBidang.findUnique({
         where: { id },
         include: { user: true, bidang: true },
@@ -158,11 +151,7 @@ module.exports = {
         });
       }
 
-      // Hak akses:
-      // - admin => boleh update siapa saja
-      // - sub_koordinator_bidang => hanya boleh update dirinya sendiri (requester.id === sub.userId)
       if (requester.role === 'admin') {
-        // ok
       } else if (requester.role === 'sub_koordinator_bidang') {
         if (requester.id !== sub.userId) {
           return res.status(403).json({
@@ -177,7 +166,6 @@ module.exports = {
           .json({ status: false, message: 'Akses ditolak', data: null });
       }
 
-      // Validasi email unik jika diubah
       if (email && email !== sub.user.email) {
         const emailExist = await prisma.user.findUnique({ where: { email } });
         if (emailExist) {
@@ -189,7 +177,6 @@ module.exports = {
         }
       }
 
-      // Update user (email, password) using sub.userId
       await prisma.user.update({
         where: { id: sub.userId },
         data: {
@@ -200,7 +187,6 @@ module.exports = {
         },
       });
 
-      // Update sub koordinator (nama, bidang jika admin)
       const updated = await prisma.subKoordinatorBidang.update({
         where: { id },
         data: {
@@ -233,7 +219,6 @@ module.exports = {
     }
   },
 
-  // DELETE subkoordinator by sub.id
   deleteSubkoorbidById: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -248,7 +233,6 @@ module.exports = {
         });
       }
 
-      // Hapus user (cascade akan hapus subKoordinator record jika onDelete Cascade di schema)
       await prisma.user.delete({ where: { id: sub.userId } });
 
       return res.status(200).json({
@@ -263,9 +247,8 @@ module.exports = {
 
   getAllPesertaMagang: async (req, res, next) => {
     try {
-      const subKoordinatorId = req.user.id; // Ambil ID user dari token
+      const subKoordinatorId = req.user.id;
 
-      // Cek apakah user adalah sub koordinator dan ambil bidangId-nya
       const subKoordinator = await prisma.subKoordinatorBidang.findUnique({
         where: { userId: subKoordinatorId },
       });
@@ -278,12 +261,11 @@ module.exports = {
         });
       }
 
-      // Ambil semua peserta magang yang memiliki ajuan ke bidang sub koordinator
       const ajuan = await prisma.ajuanMagang.findMany({
         where: {
           bidangId: subKoordinator.bidangId,
           peserta: {
-            isApproved: true, // Hanya peserta yang sudah disetujui
+            isApproved: true,
           },
         },
         include: {
@@ -316,7 +298,6 @@ module.exports = {
     try {
       const userId = req.user.id;
 
-      // Ambil data subkoordinator dan bidangnya
       const sub = await prisma.subKoordinatorBidang.findUnique({
         where: { userId },
         include: { bidang: true },
@@ -330,11 +311,10 @@ module.exports = {
         });
       }
 
-      // Ambil peserta yang berada di bidang yang sama
       const logbooks = await prisma.logbook.findMany({
         where: {
           peserta: {
-            bidangId: sub.bidangId, // pastikan relasi ini ada di model pesertaMagang
+            bidangId: sub.bidangId,
           },
         },
         orderBy: { tanggal: 'desc' },
@@ -372,7 +352,6 @@ module.exports = {
     try {
       const userId = req.user.id;
 
-      // Cari bidangId dari user yang login sebagai subkoordinator
       const subkoordinator = await prisma.subKoordinatorBidang.findUnique({
         where: { userId },
       });
@@ -418,7 +397,6 @@ module.exports = {
         },
       });
 
-      // Filter hanya yang punya ajuan sesuai bidang subkoordinator
       const filtered = laporan.filter((item) => item.peserta.ajuan.length > 0);
 
       const formatted = filtered.map((item) => ({
@@ -448,8 +426,6 @@ module.exports = {
   getUlasanMagangByBidang: async (req, res, next) => {
     try {
       const userId = req.user.id;
-
-      // Ambil data sub koordinator dan bidangnya
       const subKoordinator = await prisma.subKoordinatorBidang.findUnique({
         where: { userId },
       });
@@ -464,7 +440,6 @@ module.exports = {
 
       const bidangId = subKoordinator.bidangId;
 
-      // Ambil ulasan dari peserta yang bidangnya sesuai
       const ulasanMagang = await prisma.ulasanMagang.findMany({
         include: {
           user: {
@@ -533,10 +508,9 @@ module.exports = {
   },
   approveAjuanMagang: async (req, res, next) => {
     try {
-      const userId = req.user.id; // ID subkoordinator dari token
+      const userId = req.user.id;
       const { ajuanId } = req.params;
 
-      // Cari subkoordinator dan bidangnya
       const subKoordinator = await prisma.subKoordinatorBidang.findUnique({
         where: { userId },
         include: { bidang: true },
@@ -550,7 +524,6 @@ module.exports = {
         });
       }
 
-      // Ambil data ajuan
       const ajuan = await prisma.ajuanMagang.findUnique({
         where: { id: ajuanId },
         include: {
@@ -567,7 +540,6 @@ module.exports = {
         });
       }
 
-      // Pastikan bidang ajuan sama dengan bidang milik subkoordinator
       if (ajuan.bidangId !== subKoordinator.bidangId) {
         return res.status(403).json({
           status: false,
@@ -576,7 +548,6 @@ module.exports = {
         });
       }
 
-      // Pastikan status belum disetujui
       if (ajuan.statusUsulan === 'disetujui') {
         return res.status(400).json({
           status: false,
@@ -585,7 +556,6 @@ module.exports = {
         });
       }
 
-      // Cek kuota bidang
       const kuotaBidang = await prisma.kuotaBidang.findUnique({
         where: { id: subKoordinator.bidangId },
       });
@@ -598,7 +568,6 @@ module.exports = {
         });
       }
 
-      // Update status ajuan & relasikan bidang ke peserta, kurangi kuota
       const updatedAjuan = await prisma.ajuanMagang.update({
         where: { id: ajuanId },
         data: {
@@ -615,7 +584,6 @@ module.exports = {
         },
       });
 
-      // Kurangi kuota bidang
       await prisma.kuotaBidang.update({
         where: { id: subKoordinator.bidangId },
         data: {

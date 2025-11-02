@@ -5,7 +5,6 @@ const ejs = require('ejs');
 const path = require('path');
 
 const cekKuota = async (bidangId) => {
-  // Validasi input. ID tidak boleh null, undefined, atau string kosong.
   if (!bidangId) {
     throw new Error('ID Bidang (bidangPilihan) tidak boleh kosong.');
   }
@@ -17,7 +16,6 @@ const cekKuota = async (bidangId) => {
       select: { kuota: true },
     });
   } catch (prismaError) {
-    // Menangkap error jika 'bidangId' bukan UUID yang valid
     console.error('Error Prisma saat mencari bidang:', prismaError.message);
     throw new Error(
       `Format ID Bidang tidak valid. Pastikan Anda mengirim UUID.`
@@ -25,7 +23,6 @@ const cekKuota = async (bidangId) => {
   }
 
   if (!bidang) {
-    // Ini error logis: ID-nya valid tapi tidak ada di DB
     throw new Error(
       `Bidang tidak ditemukan. ID (${bidangId}) tidak ada di database.`
     );
@@ -40,9 +37,7 @@ const cekKuota = async (bidangId) => {
     });
     return jumlahDiterima < bidang.kuota;
   } catch (countError) {
-    // Ini error saat menghitung
     console.error('Error saat menghitung jumlah ajuan:', countError);
-    // Anggap penuh jika gagal menghitung
     throw new Error(`Gagal menghitung kuota: ${countError.message}`);
   }
 };
@@ -61,7 +56,6 @@ module.exports = {
     try {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
-          // 401 Unauthorized
           status: false,
           message:
             'Autentikasi gagal. Token tidak valid atau user tidak ditemukan.',
@@ -101,7 +95,6 @@ module.exports = {
         peserta_instansi: instansi,
         peserta_jurusan: jurusan,
 
-        // Untuk tabel AjuanMagang
         ajuan_kategoriMagang: kategori,
         ajuan_statusPendidikan: statusPendidikan,
         ajuan_jenjangPendidikan: jenjangPendidikan,
@@ -112,7 +105,6 @@ module.exports = {
         ajuan_temaMagang: tema,
         ajuan_bidangId: bidangPilihan,
 
-        // Untuk tabel BerkasMagang (dari middleware 'uploadBerkasAjuan')
         berkas_suratPengantar: berkas_urls.surat_pengantar,
         berkas_proposalMagang: berkas_urls.proposal_magang,
         berkas_cv: berkas_urls.cv,
@@ -133,13 +125,11 @@ module.exports = {
           select: { id: true },
         });
 
-        // Langkah B: Cek Kuota Bidang
         const kuotaTersedia = await cekKuota(dataUntukDb.ajuan_bidangId);
         if (!kuotaTersedia) {
           throw new Error('Kuota untuk bidang ini sudah penuh.');
         }
 
-        // Langkah C: Buat record AjuanMagang baru
         const ajuan = await tx.ajuanMagang.create({
           data: {
             kategoriMagang: dataUntukDb.ajuan_kategoriMagang,
@@ -197,9 +187,6 @@ module.exports = {
     }
   },
 
-  /**
-   * 2. PESERTA: Melihat Riwayat Ajuan Magang Milik Sendiri
-   */
   getAjuanMagangByPeserta: async (req, res, next) => {
     console.log(
       '--- ENTERING getAjuanMagangByPeserta (VERSION WITH SELECT ID) ---'
@@ -215,7 +202,6 @@ module.exports = {
 
       const userIdFromToken = req.user.id;
 
-      // 1. Cari PesertaMagang ID
       const peserta = await prisma.pesertaMagang.findUnique({
         where: { userId: userIdFromToken },
         select: { id: true },
@@ -229,7 +215,6 @@ module.exports = {
         });
       }
 
-      // 2. Ambil semua ajuan magang milik peserta tsb
       const riwayatAjuan = await prisma.ajuanMagang.findMany({
         where: { pesertaId: peserta.id },
         select: {
@@ -266,7 +251,6 @@ module.exports = {
 
   getDetailAjuanMagang: async (req, res, next) => {
     try {
-      // 1. Validasi User dari Token
       if (!req.user || !req.user.id) {
         return res.status(401).json({
           status: false,
@@ -276,7 +260,6 @@ module.exports = {
       }
       const userIdFromToken = req.user.id;
 
-      // 2. Ambil ID Ajuan dari parameter URL
       const { id: ajuanId } = req.params;
       if (!ajuanId) {
         return res
@@ -284,7 +267,6 @@ module.exports = {
           .json({ status: false, message: 'ID Ajuan diperlukan.', data: null });
       }
 
-      // 3. Ambil data AjuanMagang dari database
       const ajuan = await prisma.ajuanMagang.findUnique({
         where: {
           id: ajuanId,
@@ -308,7 +290,6 @@ module.exports = {
         },
       });
 
-      // 4. Validasi: Cek jika ajuan ada
       if (!ajuan) {
         return res
           .status(404)
@@ -323,7 +304,6 @@ module.exports = {
         });
       }
 
-      // 6. Kirim data
       res.status(200).json({
         status: true,
         message: 'Detail ajuan magang berhasil diambil.',
@@ -334,9 +314,6 @@ module.exports = {
     }
   },
 
-  /**
-   * 3. ADMIN & SUBKOOR: Melihat Semua Usulan Magang yang Masuk
-   */
   getAllAjuanMagang: async (req, res, next) => {
     try {
       const { role, userId } = req.user;
@@ -344,7 +321,6 @@ module.exports = {
 
       let whereClause = {};
 
-      // A. Filter berdasarkan Role
       if (role === 'sub_koordinator_bidang') {
         const subKoor = await prisma.subKoordinatorBidang.findUnique({
           where: { userId: userId },
@@ -362,7 +338,6 @@ module.exports = {
         }
       }
 
-      // B. Filter berdasarkan Status
       if (status && status !== 'all') {
         const validStatus = ['PENDING', 'DITERIMA', 'DITOLAK'];
         if (validStatus.includes(status.toUpperCase())) {
@@ -370,7 +345,6 @@ module.exports = {
         }
       }
 
-      // C. Filter berdasarkan Pencarian
       if (search) {
         whereClause.OR = [
           { temaMagang: { contains: search } },
@@ -389,11 +363,9 @@ module.exports = {
         ];
       }
 
-      // D. Setup Pagination
       const skip = (parseInt(page) - 1) * parseInt(limit);
       const take = parseInt(limit);
 
-      // E. Ambil Data + Total
       const [ajuanList, totalItems] = await prisma.$transaction([
         prisma.ajuanMagang.findMany({
           where: whereClause,
@@ -401,7 +373,6 @@ module.exports = {
             id: true,
             createdAt: true,
             updatedAt: true,
-            // Data Ajuan
             instansi: true,
             jurusan: true,
             statusPendidikan: true,
@@ -411,7 +382,6 @@ module.exports = {
             tglSelesai: true,
             statusUsulan: true,
 
-            // Data Relasi Peserta
             peserta: {
               select: {
                 id: true,
@@ -425,7 +395,6 @@ module.exports = {
                 },
               },
             },
-            // Data Relasi Bidang
             bidang: {
               select: { nama: true },
             },
@@ -439,7 +408,6 @@ module.exports = {
         prisma.ajuanMagang.count({ where: whereClause }),
       ]);
 
-      // Kirim respons dengan style yang konsisten
       res.status(200).json({
         status: true,
         message: 'Data ajuan magang berhasil diambil.',
@@ -455,9 +423,6 @@ module.exports = {
     }
   },
 
-  /**
-   * 4. ADMIN & SUBKOOR: Memberi Balasan (ACC/Tolak) Usulan Magang
-   */
   updateStatusAjuan: async (req, res, next) => {
     try {
       const { id: ajuanId } = req.params;
@@ -471,24 +436,20 @@ module.exports = {
         });
       }
 
-      // 1. Ambil data ajuan (Query sudah DIPERBAIKI)
       const ajuan = await prisma.ajuanMagang.findUnique({
         where: { id: ajuanId },
-        // Gunakan 'select' untuk memastikan semua data terambil
         select: {
           id: true,
-          statusUsulan: true, // Dibutuhkan untuk Cek Kuota
+          statusUsulan: true,
 
-          // ======== PERBAIKAN 1: Ambil tanggal ========
           tglMulai: true,
           tglSelesai: true,
-          // ==========================================
 
           peserta: {
             select: {
               id: true,
               namaLengkap: true,
-              user: { select: { email: true } }, // Ambil email dari User
+              user: { select: { email: true } },
             },
           },
           bidang: {
@@ -505,7 +466,6 @@ module.exports = {
         });
       }
 
-      // 2. Cek Kuota (Logic Anda)
       if (status === 'DITERIMA' && ajuan.statusUsulan !== 'DITERIMA') {
         const kuotaTersedia = await cekKuota(ajuan.bidang.id);
         if (!kuotaTersedia) {
@@ -517,11 +477,9 @@ module.exports = {
         }
       }
 
-      // 3. Siapkan data update
       const statusUsulanStr = status;
       const statusPesertaEnum = status === 'DITERIMA' ? 'APPROVED' : 'REJECTED';
 
-      // 4. Gunakan Transaksi
       await prisma.$transaction(async (tx) => {
         await tx.ajuanMagang.update({
           where: { id: ajuanId },
@@ -537,26 +495,20 @@ module.exports = {
         });
       });
 
-      // 5. Kirim Email Notifikasi Status
       const { email: emailPeserta } = ajuan.peserta.user;
       const { namaLengkap: namaPeserta } = ajuan.peserta;
 
-      // ==========================================================
-      // !! PERBAIKAN 2: Validasi email untuk error 'No recipients' !!
-      // ==========================================================
       if (!emailPeserta) {
         console.error(
           `Gagal mengirim email: Email tidak ditemukan untuk peserta ${namaPeserta} (ID: ${ajuan.peserta.id})`
         );
 
-        // Kirim respons sukses ke admin, tapi beri peringatan
         return res.status(200).json({
           status: true,
           message: `Ajuan berhasil di-${status.toLowerCase()}. PERINGATAN: Notifikasi email GAGAL terkirim (email peserta tidak terdaftar).`,
           data: null,
         });
       }
-      // ==========================================================
 
       let emailSubject = '';
       let templateData = {};
@@ -582,7 +534,6 @@ module.exports = {
           },
         };
       } else {
-        // DITOLAK
         emailSubject = 'Pemberitahuan Status Usulan Magang';
         templateData = {
           namaLengkap: namaPeserta,
@@ -591,30 +542,21 @@ module.exports = {
         };
       }
 
-      // Tentukan path ke file template EJS Anda
       const templatePath = path.join(
         __dirname,
-        '../views/sendNoticeInternProposal.ejs' // Path Anda
+        '../views/sendNoticeInternProposal.ejs'
       );
 
-      // Render file EJS menjadi string HTML
       ejs.renderFile(templatePath, templateData, (err, html) => {
         if (err) {
           console.error('Gagal me-render EJS untuk email:', err);
-          // Jika render gagal, email tidak terkirim, tapi DB sudah update.
-          // Respons sukses di bawah akan tetap terkirim.
         } else {
-          // Kirim email (non-blocking)
-          // ==========================================================
-          // !! PERBAIKAN 3: Menggunakan 'sendMail' dan parameter Anda !!
-          // ==========================================================
           sendEmail({
             from: process.env.SENDER_GMAIL,
-            to: emailPeserta, // 'to' bukan 'email'
+            to: emailPeserta,
             subject: emailSubject,
-            html: html, // 'html' bukan 'htmlEmail'
+            html: html,
           }).catch((emailError) => {
-            // Tangkap error pengiriman email di sini agar server tidak crash
             console.error(
               'Gagal mengirim email notifikasi status:',
               emailError
@@ -623,15 +565,12 @@ module.exports = {
         }
       });
 
-      // Kirim respons sukses ke admin (DB update berhasil)
-      // Ini akan terkirim TANPA menunggu email selesai dikirim
       res.status(200).json({
         status: true,
         message: `Ajuan berhasil di-${status.toLowerCase()}. Notifikasi email sedang diproses.`,
         data: null,
       });
     } catch (error) {
-      // Tangani error lain (DB, Kuota, dll)
       next(error);
     }
   },
@@ -661,7 +600,6 @@ module.exports = {
         },
       });
 
-      // Format data agar sesuai dengan kebutuhan frontend
       const formattedData = daftarAjuanDiterima.map((ajuan) => ({
         ajuanId: ajuan.id,
         pesertaId: ajuan.peserta.id,
@@ -680,9 +618,6 @@ module.exports = {
     }
   },
 
-  /**
-   * 5. ADMIN & SUBKOOR: Mengirim Surat Penerimaan Magang
-   */
   kirimSuratPenerimaan: async (req, res, next) => {
     try {
       const { ajuanId, noSurat } = req.body;
@@ -697,14 +632,13 @@ module.exports = {
         });
       }
 
-      // 1. Ambil data ajuan untuk validasi dan info email
       const ajuan = await prisma.ajuanMagang.findUnique({
         where: { id: ajuanId },
         select: {
           id: true,
           statusUsulan: true,
-          tglMulai: true, // Ganti nama field jika beda (tglMulai -> tanggalMulai)
-          tglSelesai: true, // Ganti nama field jika beda
+          tglMulai: true,
+          tglSelesai: true,
           peserta: {
             select: {
               namaLengkap: true,
@@ -712,11 +646,10 @@ module.exports = {
             },
           },
           bidang: { select: { nama: true } },
-          suratPenerimaan: true, // Untuk cek duplikat
+          suratPenerimaan: true,
         },
       });
 
-      // 2. Validasi
       if (!ajuan) {
         return res
           .status(404)
@@ -735,7 +668,6 @@ module.exports = {
         });
       }
 
-      // 3. Simpan data surat ke DB (Model baru Anda)
       await prisma.suratPenerimaan.create({
         data: {
           noSurat: noSurat,
@@ -774,14 +706,12 @@ module.exports = {
 
       const html = await ejs.renderFile(templatePath, templateData);
 
-      // 6. Siapkan attachment
       const attachment = {
         filename: `Surat_Penerimaan_${namaPeserta.replace(/\s+/g, '_')}.pdf`,
         content: pdfBuffer,
         contentType: 'application/pdf',
       };
 
-      // 7. Kirim email (Pastikan 'sendMail' Anda support 'attachments')
       await sendEmail({
         from: process.env.SENDER_GMAIL,
         to: emailPeserta,
@@ -791,7 +721,6 @@ module.exports = {
       });
 
       res.status(201).json({
-        // 201 Created
         status: true,
         message:
           'Surat penerimaan berhasil diunggah, disimpan, dan dikirim ke email peserta.',
@@ -803,12 +732,10 @@ module.exports = {
 
   getAllRiwayatSurat: async (req, res, next) => {
     try {
-      // Ambil filter dari query params frontend
       const { search, bidang, date } = req.query;
 
       const where = {};
 
-      // Filter 1: Cari Nama Peserta
       if (search) {
         where.ajuan = {
           peserta: {
@@ -817,7 +744,6 @@ module.exports = {
         };
       }
 
-      // Filter 2: Filter Bidang
       if (bidang && bidang !== 'Semua') {
         where.ajuan = {
           ...where.ajuan,
@@ -827,11 +753,10 @@ module.exports = {
         };
       }
 
-      // Filter 3: Filter Tanggal Kirim (berdasarkan createdAt di SuratPenerimaan)
       if (date) {
         const startDate = new Date(date);
         const endDate = new Date(date);
-        endDate.setDate(endDate.getDate() + 1); // Sampai akhir hari
+        endDate.setDate(endDate.getDate() + 1);
 
         where.createdAt = {
           gte: startDate,
@@ -839,14 +764,13 @@ module.exports = {
         };
       }
 
-      // Query ke model 'SuratPenerimaan', BUKAN 'AjuanMagang'
       const riwayat = await prisma.suratPenerimaan.findMany({
         where: where,
         select: {
           id: true,
           noSurat: true,
-          createdAt: true, // Ini adalah Tanggal Kirim
-          fileUrl: true, // Untuk tombol Aksi "Lihat Surat"
+          createdAt: true,
+          fileUrl: true,
           ajuan: {
             select: {
               peserta: {
@@ -866,14 +790,13 @@ module.exports = {
         },
       });
 
-      // Format data agar sesuai dengan kebutuhan tabel frontend
       const formattedData = riwayat.map((item) => ({
         id: item.id,
         namaPeserta: item.ajuan.peserta.namaLengkap,
         email: item.ajuan.peserta.user.email,
         bidang: item.ajuan.bidang.nama,
         noSurat: item.noSurat,
-        tanggal: item.createdAt, // Kirim sebagai ISO string
+        tanggal: item.createdAt,
         fileUrl: item.fileUrl,
       }));
 
@@ -915,7 +838,7 @@ module.exports = {
             statusUsulan: true,
             tglMulai: true,
             tglSelesai: true,
-            createdAt: true, // <-- PASTIKAN INI ADA
+            createdAt: true,
             peserta: {
               select: {
                 namaLengkap: true,
@@ -936,24 +859,21 @@ module.exports = {
         prisma.ajuanMagang.count({ where: whereClause }),
       ]);
 
-      // Transformasi data TANPA format TANGGAL dan PERIODE
       const transformedData = ajuanList.map((ajuan) => ({
         nama: ajuan.peserta.namaLengkap,
-        // --- TANGGAL DIHAPUS DARI SINI ---
         tema: ajuan.temaMagang,
         bidang: ajuan.bidang.nama,
         status:
           ajuan.statusUsulan === 'PENDING' ? 'Diproses' : ajuan.statusUsulan,
-        // Kirim tanggal mentah
         tglMulai: ajuan.tglMulai,
         tglSelesai: ajuan.tglSelesai,
-        createdAt: ajuan.createdAt, // <-- KIRIM INI MENTAH
+        createdAt: ajuan.createdAt,
       }));
 
       res.status(200).json({
         status: true,
         message: 'Daftar usulan magang publik berhasil diambil.',
-        data: transformedData, // Data sekarang berisi createdAt mentah
+        data: transformedData,
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(totalItems / take),

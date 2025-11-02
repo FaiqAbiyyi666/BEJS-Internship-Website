@@ -59,7 +59,7 @@ module.exports = {
 
       const peserta = await prisma.pesertaMagang.findUnique({
         where: { id: id },
-        include: { user: true }, // Untuk mendapatkan email dari tabel User
+        include: { user: true },
       });
 
       if (!peserta) {
@@ -69,7 +69,6 @@ module.exports = {
         });
       }
 
-      // Pengecekan status yang lebih baik, agar tidak bisa di-approve/reject jika statusnya bukan PENDING
       if (peserta.status !== 'PENDING') {
         return res.status(400).json({
           status: false,
@@ -77,13 +76,11 @@ module.exports = {
         });
       }
 
-      // Update status jadi APPROVED
       await prisma.pesertaMagang.update({
         where: { id: id },
         data: { status: 'APPROVED' },
       });
 
-      // Simpan notifikasi ke database
       await prisma.notifikasi.create({
         data: {
           userId: peserta.userId,
@@ -94,19 +91,17 @@ module.exports = {
         },
       });
 
-      // Render template approveAccount.ejs
       const templatePath = path.join(__dirname, '../views/approveAccount.ejs');
       const htmlEmail = await ejs.renderFile(templatePath, {
         namaLengkap: peserta.namaLengkap,
         email: peserta.user.email,
       });
 
-      // Kirim email notifikasi
       await sendMail({
-        from: process.env.SENDER_GMAIL, // Gunakan variabel env Anda
+        from: process.env.SENDER_GMAIL,
         to: peserta.user.email,
         subject: 'Registrasi Magang Disetujui - SIMAGANG Diskominfo Sidoarjo',
-        html: htmlEmail, // pakai template yang sudah dirender
+        html: htmlEmail,
       });
 
       return res.status(200).json({
@@ -126,7 +121,7 @@ module.exports = {
 
       const peserta = await prisma.pesertaMagang.findUnique({
         where: { id: id },
-        include: { user: true }, // Untuk mendapatkan email dari tabel User
+        include: { user: true },
       });
 
       if (!peserta) {
@@ -136,8 +131,6 @@ module.exports = {
         });
       }
 
-      // PERBAIKAN: Pengecekan status yang lebih baik.
-      // Mencegah aksi jika status bukan 'PENDING' (misalnya sudah di-approve atau di-reject).
       if (peserta.status !== 'PENDING') {
         return res.status(400).json({
           status: false,
@@ -145,13 +138,11 @@ module.exports = {
         });
       }
 
-      // Update status jadi REJECTED
       await prisma.pesertaMagang.update({
         where: { id: id },
         data: { status: 'REJECTED' },
       });
 
-      // Simpan notifikasi (pesan generik sesuai kode Anda)
       await prisma.notifikasi.create({
         data: {
           userId: peserta.userId,
@@ -162,19 +153,17 @@ module.exports = {
         },
       });
 
-      // Render template rejectAccount.ejs (mengirim nama dan email, sesuai kode Anda)
       const templatePath = path.join(__dirname, '../views/rejectAccount.ejs');
       const htmlEmail = await ejs.renderFile(templatePath, {
         namaLengkap: peserta.namaLengkap,
         email: peserta.user.email,
       });
 
-      // Kirim email notifikasi penolakan
       await sendMail({
-        from: process.env.SENDER_GMAIL, // Disesuaikan agar konsisten
+        from: process.env.SENDER_GMAIL,
         to: peserta.user.email,
         subject: 'Registrasi Magang Ditolak - SIMAGANG Diskominfo Sidoarjo',
-        html: htmlEmail, // pakai template yang sudah dirender
+        html: htmlEmail,
       });
 
       return res.status(200).json({
@@ -187,12 +176,11 @@ module.exports = {
     }
   },
 
-  // ✅ Daftar peserta magang dengan status PENDING
   getPendingPesertaMagang: async (req, res) => {
     try {
       const pendingPeserta = await prisma.pesertaMagang.findMany({
         where: { status: 'PENDING' },
-        orderBy: { createdAt: 'desc' }, // urutkan dari terbaru
+        orderBy: { createdAt: 'desc' },
         include: { user: true },
       });
 
@@ -209,7 +197,6 @@ module.exports = {
     }
   },
 
-  // ✅ History peserta magang (APPROVED & REJECTED)
   getHistoryPesertaMagang: async (req, res) => {
     try {
       const historyPeserta = await prisma.pesertaMagang.findMany({
@@ -249,19 +236,14 @@ module.exports = {
         });
       }
 
-      // Hapus relasi pesertaMagang jika ada
       await prisma.pesertaMagang.deleteMany({ where: { userId: id } });
 
-      // Hapus relasi subKoordinatorBidang jika ada
       await prisma.subKoordinatorBidang.deleteMany({ where: { userId: id } });
 
-      // Hapus relasi admin jika ada
       await prisma.admin.deleteMany({ where: { userId: id } });
 
-      // Hapus notifikasi
       await prisma.notifikasi.deleteMany({ where: { userId: id } });
 
-      // Hapus user
       await prisma.user.delete({ where: { id } });
 
       return res.status(200).json({
@@ -274,7 +256,6 @@ module.exports = {
     }
   },
 
-  // Ambil semua user
   getAllUsers: async (req, res, next) => {
     try {
       const users = await prisma.user.findMany({
@@ -295,7 +276,6 @@ module.exports = {
     }
   },
 
-  // Ambil user berdasarkan ID
   getUserById: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -327,7 +307,6 @@ module.exports = {
     }
   },
 
-  // Ambil user berdasarkan token
   getUserByToken: async (req, res, next) => {
     try {
       const { id } = req.user;
@@ -370,7 +349,6 @@ module.exports = {
             },
           },
           bidang: {
-            // Ini penting untuk frontend
             select: {
               nama: true,
               kuota: true,
@@ -416,10 +394,8 @@ module.exports = {
   },
 
   adminUpdatePesertaProfile: async (req, res, next) => {
-    // Ambil ID user dari parameter URL
     const { userId } = req.params;
 
-    // Ambil data yang dikirim dari form frontend
     const {
       email,
       namaLengkap,
@@ -433,10 +409,9 @@ module.exports = {
       periodeMulai,
       periodeSelesai,
       bidangId,
-      ajuanId, // Kita perlu ID ajuan untuk update periode/bidang
+      ajuanId,
     } = req.body;
 
-    // Validasi sederhana
     if (
       !email ||
       !namaLengkap ||
@@ -456,16 +431,12 @@ module.exports = {
     }
 
     try {
-      // Gunakan $transaction untuk memastikan integritas data
       await prisma.$transaction(async (tx) => {
-        // 1. Update tabel User (hanya email)
         await tx.user.update({
           where: { id: userId },
           data: { email: email },
         });
 
-        // 2. Update tabel PesertaMagang
-        // Kita perlu ID PesertaMagang, bukan userId
         const peserta = await tx.pesertaMagang.findFirst({
           where: { userId: userId },
           select: { id: true },
@@ -491,16 +462,12 @@ module.exports = {
           },
         });
 
-        // 3. HANYA update data ajuan jika datanya dikirim (tidak kosong/null)
-        //    Frontend akan mengirim string kosong "" jika tidak ada, yg dievaluasi sbg 'false'
         if (ajuanId && periodeMulai && periodeSelesai && bidangId) {
-          // Cek dulu apakah ajuanId-nya valid
           const ajuan = await tx.ajuanMagang.findUnique({
             where: { id: ajuanId },
           });
 
           if (ajuan) {
-            // Jika peserta sudah punya ajuan, update ajuan tersebut
             await tx.ajuanMagang.update({
               where: { id: ajuanId },
               data: {
@@ -513,14 +480,13 @@ module.exports = {
         }
       });
 
-      // Jika transaksi sukses
       res.status(200).json({
         status: true,
         message: 'Data peserta berhasil diperbarui oleh Admin.',
       });
     } catch (error) {
       console.error('Error saat Admin update data peserta:', error);
-      next(error); // Kirim ke error handler
+      next(error);
     }
   },
 
@@ -583,7 +549,7 @@ module.exports = {
                 orderBy: {
                   createdAt: 'desc',
                 },
-                take: 1, // Ambil ajuan terbaru (jika ada lebih dari satu)
+                take: 1,
               },
             },
           },
@@ -593,7 +559,6 @@ module.exports = {
         },
       });
 
-      // Tambahkan nama bidang ke root data
       const formatted = laporan.map((item) => ({
         id: item.id,
         fileLaporan: item.fileLaporan,

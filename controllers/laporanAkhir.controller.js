@@ -91,15 +91,14 @@ module.exports = {
         include: {
           peserta: {
             include: {
-              user: { select: { email: true } }, // Ambil email
-              bidang: { select: { nama: true } }, // Ambil nama bidang
+              user: { select: { email: true } },
+              bidang: { select: { nama: true } },
             },
           },
         },
         orderBy: { createdAt: 'desc' },
       });
 
-      // Format data agar sesuai ekspektasi frontend (ManageLaporanAkhir.jsx)
       const formattedLaporan = laporanPending.map((l) => ({
         id: l.id,
         fileLaporan: l.fileLaporan,

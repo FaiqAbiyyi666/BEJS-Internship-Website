@@ -10,7 +10,6 @@ module.exports = async (mailOptions) => {
         console.log('Email sent: ', info.response);
         resolve(info);
       }
-    }); 
+    });
   });
 };
-  

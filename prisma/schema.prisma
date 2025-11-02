@@ -147,7 +147,6 @@ model Logbook {
   pesertaId String        @map("peserta_id")
   peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  // Memastikan 1 peserta hanya bisa 1 log per tanggal
   @@unique([pesertaId, tanggal])
 }
 

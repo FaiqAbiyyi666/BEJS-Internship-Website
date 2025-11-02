@@ -1,15 +1,12 @@
 const multer = require('multer');
 const path = require('path');
-const imagekit = require('../libs/imagekit'); // Panggil konfigurasi ImageKit
+const imagekit = require('../libs/imagekit');
 
-// Gunakan memoryStorage untuk menahan file sementara di memori
 const storage = multer.memoryStorage();
 
-// Inisialisasi multer dengan memoryStorage
 const upload = multer({
   storage: storage,
   fileFilter: (req, file, cb) => {
-    // Filter untuk gambar dan PDF (untuk berkas)
     const allowedTypes = /jpeg|jpg|png|pdf/;
     const ext = path.extname(file.originalname).toLowerCase();
     const mime = file.mimetype;
@@ -27,21 +24,16 @@ const upload = multer({
       );
     }
   },
-  limits: { fileSize: 5 * 1024 * 1024 }, // Naikkan limit ke 5MB untuk mengakomodasi PDF
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-/**
- * Middleware untuk mengunggah satu file "pas_foto" ke ImageKit.
- */
 const uploadPasFoto = (req, res, next) => {
-  // Gunakan middleware single dari multer untuk field 'pas_foto'
   upload.single('pasFoto')(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ message: err.message });
     }
 
     if (!req.file) {
-      // Jika pas foto tidak wajib, lewati saja
       return next();
     }
 
@@ -50,14 +42,12 @@ const uploadPasFoto = (req, res, next) => {
       const ext = path.extname(req.file.originalname);
       const fileName = `pasfoto-${uniqueSuffix}${ext}`;
 
-      // Proses upload ke ImageKit
       const result = await imagekit.upload({
-        file: req.file.buffer, // Ambil file dari buffer
+        file: req.file.buffer,
         fileName: fileName,
-        folder: '/pas_foto/', // Folder tujuan di ImageKit
+        folder: '/pas_foto/',
       });
 
-      // Simpan URL hasil upload ke req.body agar bisa diakses controller
       req.body.pasFotoUrl = result.url;
       next();
     } catch (error) {
@@ -69,9 +59,6 @@ const uploadPasFoto = (req, res, next) => {
   });
 };
 
-/**
- * Middleware untuk mengunggah banyak "berkas_ajuan_magang" ke ImageKit.
- */
 const uploadBerkasAjuan = (req, res, next) => {
   const fields = [
     { name: 'proposal_magang', maxCount: 1 },
@@ -82,7 +69,6 @@ const uploadBerkasAjuan = (req, res, next) => {
     { name: 'surat_bakesbang_prov', maxCount: 1 },
   ];
 
-  // Gunakan middleware fields dari multer
   upload.fields(fields)(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ message: err.message });
@@ -98,34 +84,29 @@ const uploadBerkasAjuan = (req, res, next) => {
       const uploadPromises = [];
       const uploadedUrls = {};
 
-      // Loop setiap field yang ada di req.files
       for (const field in req.files) {
         const file = req.files[field][0];
-        const folderName = field; // Nama field akan menjadi nama folder (e.g., 'cv', 'ktp')
+        const folderName = field;
 
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
         const ext = path.extname(file.originalname);
         const fileName = `${folderName}-${uniqueSuffix}${ext}`;
 
-        // Buat promise untuk setiap proses upload
         const uploadPromise = imagekit
           .upload({
             file: file.buffer,
             fileName: fileName,
-            folder: `/berkas_ajuan_magang/${folderName}/`, // Folder tujuan dinamis
+            folder: `/berkas_ajuan_magang/${folderName}/`,
           })
           .then((result) => {
-            // Simpan URL berdasarkan field name
             uploadedUrls[folderName] = result.url;
           });
 
         uploadPromises.push(uploadPromise);
       }
 
-      // Jalankan semua promise upload secara paralel
       await Promise.all(uploadPromises);
 
-      // Simpan semua URL ke req.body
       req.body.berkas_urls = uploadedUrls;
       next();
     } catch (error) {
@@ -138,7 +119,6 @@ const uploadBerkasAjuan = (req, res, next) => {
 };
 
 const uploadSuratPenerimaan = (req, res, next) => {
-  // Nama field 'suratPenerimaan' harus sesuai dengan yang dikirim dari FormData frontend
   upload.single('suratPenerimaan')(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ message: err.message });
@@ -155,18 +135,15 @@ const uploadSuratPenerimaan = (req, res, next) => {
       const ext = path.extname(req.file.originalname);
       const fileName = `suratpenerimaan-${uniqueSuffix}${ext}`;
 
-      // Proses upload ke ImageKit
       const result = await imagekit.upload({
-        file: req.file.buffer, // Ambil file dari buffer
+        file: req.file.buffer,
         fileName: fileName,
-        folder: '/surat_penerimaan_magang/', // <-- Folder Sesuai Permintaan
+        folder: '/surat_penerimaan_magang/',
       });
 
-      // Simpan URL dan ID file ke req.body agar bisa diakses controller
       req.body.fileUrl = result.url;
       req.body.fileId = result.fileId;
 
-      // req.file.buffer akan otomatis diteruskan ke controller
       next();
     } catch (error) {
       console.error(error);
@@ -178,7 +155,6 @@ const uploadSuratPenerimaan = (req, res, next) => {
 };
 
 const uploadSertifikat = (req, res, next) => {
-  // Nama field 'file' harus sesuai dengan yang dikirim dari FormData frontend
   upload.single('file')(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ message: err.message });
@@ -190,7 +166,6 @@ const uploadSertifikat = (req, res, next) => {
         .json({ message: 'File sertifikat (PDF) wajib diunggah.' });
     }
 
-    // Validasi ganda untuk memastikan ini PDF
     if (req.file.mimetype !== 'application/pdf') {
       return res.status(400).json({
         message:

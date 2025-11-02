@@ -20,7 +20,6 @@ module.exports = {
         pesan,
       };
 
-      // Jika userId ada (user sedang login), hubungkan relasinya
       if (userId) {
         dataToCreate.user = {
           connect: { id: userId },
@@ -41,18 +40,12 @@ module.exports = {
     }
   },
 
-  /**
-   * (ADMIN) Mengambil semua data kritik dan saran untuk dashboard admin.
-   * Mendukung filtering berdasarkan search (nama/email/pesan) dan tanggal.
-   */
   getAllKritikSaran: async (req, res, next) => {
     try {
-      // Ambil query params dari frontend admin
       const { search, date } = req.query;
 
       const where = {};
 
-      // 1. Filter Pencarian
       if (search) {
         where.OR = [
           { nama: { contains: search, mode: 'insensitive' } },
@@ -61,11 +54,10 @@ module.exports = {
         ];
       }
 
-      // 2. Filter Tanggal
       if (date) {
-        const startDate = new Date(date); // YYYY-MM-DD
+        const startDate = new Date(date);
         const endDate = new Date(date);
-        endDate.setDate(endDate.getDate() + 1); // Set ke hari berikutnya jam 00:00
+        endDate.setDate(endDate.getDate() + 1);
 
         where.createdAt = {
           gte: startDate,
@@ -76,7 +68,7 @@ module.exports = {
       const kritikSaranList = await prisma.kritikSaran.findMany({
         where: where,
         orderBy: {
-          createdAt: 'desc', // Tampilkan yang terbaru dulu
+          createdAt: 'desc',
         },
       });
 

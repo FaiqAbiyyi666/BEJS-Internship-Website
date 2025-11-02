@@ -38,7 +38,6 @@ module.exports = {
         }
       }
 
-      // Validasi input
       if (
         !namaLengkap ||
         !tglLahir ||
@@ -59,7 +58,6 @@ module.exports = {
         });
       }
 
-      // Cek email sudah digunakan atau belum
       const existingUser = await prisma.user.findUnique({ where: { email } });
       if (existingUser) {
         return res.status(409).json({
@@ -69,10 +67,8 @@ module.exports = {
         });
       }
 
-      // Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Buat akun user
       const newUser = await prisma.user.create({
         data: {
           email,
@@ -81,7 +77,6 @@ module.exports = {
         },
       });
 
-      // Buat data peserta magang, dengan status PENDING
       let user = await prisma.pesertaMagang.create({
         data: {
           userId: newUser.id,
@@ -93,20 +88,16 @@ module.exports = {
           instansi,
           jurusan,
           alamat,
-          // --- PERBAIKAN ---
-          // GANTI 'isApproved: false' MENJADI 'status: 'PENDING''
-          status: StatusPeserta.PENDING, // Set status awal sebagai PENDING
+          status: StatusPeserta.PENDING,
           pasFoto: pasFotoUrl,
         },
       });
 
-      // Render EJS template
       const htmlEmail = await ejs.renderFile(
         path.join(__dirname, '../views/registerSuccess.ejs'),
         { namaLengkap }
       );
 
-      // Kirim email ke user
       await sendMail({
         from: process.env.SENDER_GMAIL,
         to: email,
@@ -120,12 +111,10 @@ module.exports = {
         data: user,
       });
     } catch (error) {
-      // Log error asli ke konsol server untuk debugging
       console.error('REGISTRATION ERROR:', error);
       return res.status(500).json({
         status: false,
         message: 'Terjadi kesalahan pada server',
-        // Kirim pesan error asli ke front-end (opsional, bagus untuk development)
         error: error.message,
       });
     }
@@ -143,7 +132,6 @@ module.exports = {
         });
       }
 
-      // Cari user berdasarkan email
       const user = await prisma.user.findUnique({
         where: { email },
         include: {
@@ -159,7 +147,6 @@ module.exports = {
         });
       }
 
-      // Cek password
       const validPassword = await bcrypt.compare(password, user.password);
       if (!validPassword) {
         return res.status(401).json({
@@ -169,7 +156,6 @@ module.exports = {
         });
       }
 
-      // Buat token JWT
       const token = jwt.sign(
         {
           id: user.id,
@@ -177,7 +163,7 @@ module.exports = {
           role: user.role,
         },
         JWT_SECRET,
-        { expiresIn: '1d' } // token berlaku 1 hari
+        { expiresIn: '1d' }
       );
 
       return res.status(200).json({
@@ -215,9 +201,8 @@ module.exports = {
         select: {
           id: true,
           pesertaMagang: {
-            // Ambil relasi pesertaMagang
             select: {
-              namaLengkap: true, // Ambil nama lengkapnya
+              namaLengkap: true,
             },
           },
         },
@@ -237,7 +222,7 @@ module.exports = {
 
       const resetUrl = `${process.env.CLIENT_BASE_URL}/reset-password?token=${token}`;
       const html = getRenderedHtml('resetPasswordEmail', {
-        name: user.pesertaMagang?.namaLengkap || email, // Kirim nama ke EJS
+        name: user.pesertaMagang?.namaLengkap || email,
         resetPasswordUrl: resetUrl,
       });
 
