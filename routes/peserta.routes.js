@@ -9,6 +9,7 @@ const sertifikat = require('../controllers/sertifikat.controller');
 const logbook = require('../controllers/logbook.controller');
 const laporanAkhir = require('../controllers/laporanAkhir.controller');
 const dashboard = require('../controllers/dashboard.controller');
+const statistik = require('../controllers/statistik.controller');
 const { restrict, isPesertaMagang } = require('../middlewares/auth.middleware');
 const {
   uploadPasFoto,
@@ -36,6 +37,8 @@ router.get('/ajuan-magang', ajuan.getPublicAjuanList);
 router.post('/kritik-saran', kritikSaran.createKritikSaran);
 router.get('/ulasan-magang', ulasan.getPublicUlasan);
 router.get('/ulasan-magang/all', ulasan.getAllUlasanForPublicPage);
+router.get('/statistik', statistik.getStatistik);
+router.post('/statistik/increment', statistik.incrementStatistik);
 
 router.post(
   '/ajuan-magang',

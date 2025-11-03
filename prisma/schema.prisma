@@ -225,3 +225,8 @@ model Notifikasi {
   userId String @map("user_id")
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
+
+model StatistikPengunjung {
+  tahun Int @id
+  count Int @default(0)
+}

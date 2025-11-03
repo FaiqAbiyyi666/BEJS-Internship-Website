@@ -27,7 +27,7 @@ function mapStatusUsulan(status) {
   switch (status) {
     case 'PENDING':
       return 'Menunggu Persetujuan';
-    case 'DISETUJUI':
+    case 'DITERIMA':
       return 'Diterima';
     case 'DITOLAK':
       return 'Ditolak';
@@ -213,32 +213,30 @@ module.exports = {
 
   getPesertaProfileDashboard: async (req, res, next) => {
     try {
-      const { userId } = req.params;
+      const userId = req.user.id;
 
       if (!userId) {
         return res.status(400).json({
           status: false,
-          message: 'User ID tidak ditemukan.',
+          message: 'User ID tidak ditemukan dari token otentikasi.',
         });
       }
 
-      // 1. Ambil data utama PesertaMagang dan relasi penting
+      // Kueri ini sudah benar
       const peserta = await prisma.pesertaMagang.findUnique({
         where: { userId: userId },
         include: {
-          user: { select: { email: true } }, // 1. Ambil email dari User
-          bidang: { select: { nama: true } }, // 2. Ambil nama bidang YANG DITERIMA
+          user: { select: { email: true } },
+          bidang: { select: { nama: true } },
           ajuan: {
-            // 3. Ambil SEMUA ajuan
             orderBy: { createdAt: 'desc' },
-            include: { bidang: { select: { nama: true } } }, // Ambil nama bidang usulan
+            include: { bidang: { select: { nama: true } } },
           },
-          logbook: { select: { id: true, tanggal: true } }, // 4. Ambil logbook untuk progres
+          logbook: { select: { id: true, tanggal: true } },
           laporan: {
-            // 5. Ambil laporan akhir
-            orderBy: { createdAt: 'desc' }, // Ambil yang terbaru
+            orderBy: { createdAt: 'desc' },
           },
-          sertifikat: { select: { id: true } }, // 6. Cek keberadaan sertifikat
+          sertifikat: { select: { id: true } },
         },
       });
 
@@ -249,19 +247,16 @@ module.exports = {
         });
       }
 
-      // 2. Ambil data Ulasan (terpisah karena terhubung ke User, bukan PesertaMagang)
       const ulasan = await prisma.ulasanMagang.findFirst({
         where: { userId: userId },
       });
 
-      // 3. Proses dan format data untuk frontend
-
-      // Temukan ajuan terbaru dan ajuan yang disetujui
       const latestAjuan = peserta.ajuan[0] || null;
-      const approvedAjuan =
-        peserta.ajuan.find((a) => a.statusUsulan === 'DISETUJUI') || null;
 
-      // Hitung Progres Laporan Harian
+      const approvedAjuan =
+        peserta.ajuan.find((a) => a.statusUsulan === 'DITERIMA') || null;
+
+      // Logika sisa (laporanProgress, responseData) sudah benar
       let laporanProgress = 0;
       if (approvedAjuan) {
         const tglMulai = new Date(approvedAjuan.tglMulai);
@@ -273,38 +268,29 @@ module.exports = {
           laporanProgress = Math.round(
             (logbookSubmitted / totalHariKerja) * 100
           );
-          if (laporanProgress > 100) laporanProgress = 100; // Batasi di 100%
+          if (laporanProgress > 100) laporanProgress = 100;
         }
       }
 
-      // Ambil status Laporan Akhir
       const latestLaporan = peserta.laporan[0] || null;
 
-      // 4. Susun data respons sesuai kebutuhan frontend
       const responseData = {
-        // Data Profil Utama
         namaLengkap: peserta.namaLengkap,
         nimNis: peserta.nimNis,
         noTelepon: peserta.noTelepon,
         email: peserta.user.email,
         instansi: peserta.instansi,
         jurusan: peserta.jurusan,
-
-        // Data Magang (dari ajuan yang disetujui)
-        bidang: peserta.bidang?.nama || null, // Bidang yang sudah pasti
+        bidang: peserta.bidang?.nama || null,
         periode: approvedAjuan
           ? {
               mulai: approvedAjuan.tglMulai,
               selesai: approvedAjuan.tglSelesai,
             }
           : null,
-
-        // Data Status Usulan (dari ajuan terbaru)
         statusUsulan: mapStatusUsulan(latestAjuan?.statusUsulan),
         bidangUsulan: latestAjuan?.bidang.nama || null,
         tanggalPengajuan: latestAjuan?.createdAt || null,
-
-        // Data Progres Dashboard
         laporanProgress: laporanProgress,
         laporanAkhir: mapStatusLaporan(latestLaporan?.status),
         ulasan: ulasan ? 'Sudah dikirim' : 'Belum dikirim',
