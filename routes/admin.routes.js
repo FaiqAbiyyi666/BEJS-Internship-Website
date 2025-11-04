@@ -18,6 +18,8 @@ const {
 } = require('../middlewares/upload.middleware');
 
 router.post('/create-admin', admin.createAdmin);
+router.get('/profile', restrict, isAdmin, admin.getAdminProfile);
+router.post('/change-password', restrict, isAdmin, admin.changeAdminPassword);
 
 // Daftar peserta magang pending
 router.get(

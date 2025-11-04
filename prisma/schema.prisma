@@ -115,14 +115,18 @@ model KuotaBidang {
   ajuan          AjuanMagang[]
   subkoordinator SubKoordinatorBidang[]
   PesertaMagang  PesertaMagang[]
+  Admin          Admin[]
 }
 
 model Admin {
-  id        String   @id @default(uuid())
-  userId    String   @unique @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id        String       @id @default(uuid())
+  nama      String       @default("Administrator")
+  userId    String       @unique @map("user_id")
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bidangId  String?      @map("bidang_id")
+  bidang    KuotaBidang? @relation(fields: [bidangId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
 }
 
 model SubKoordinatorBidang {

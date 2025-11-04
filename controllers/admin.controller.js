@@ -8,8 +8,10 @@ const path = require('path');
 module.exports = {
   createAdmin: async (req, res, next) => {
     try {
-      const { email, password } = req.body;
+      // 1. Ambil semua data dari body, termasuk nama dan bidangId
+      const { email, password, nama, bidangId } = req.body;
 
+      // 2. Validasi email dan password (tetap wajib)
       if (!email || !password) {
         return res.status(400).json({
           status: false,
@@ -18,6 +20,7 @@ module.exports = {
         });
       }
 
+      // 3. Cek email duplikat
       const exist = await prisma.user.findUnique({ where: { email } });
       if (exist) {
         return res.status(409).json({
@@ -27,8 +30,10 @@ module.exports = {
         });
       }
 
+      // 4. Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
+      // 5. Buat User (role: 'admin')
       const user = await prisma.user.create({
         data: {
           email,
@@ -37,18 +42,34 @@ module.exports = {
         },
       });
 
+      // 6. Buat Admin (INI BAGIAN YANG DISESUAIKAN)
+      // Sekarang kita teruskan 'nama' dan 'bidangId'
+      // - Jika 'nama' tidak diisi (undefined), Prisma akan pakai default "Administrator"
+      // - Jika 'bidangId' tidak diisi (undefined), Prisma akan set ke null (karena opsional)
       const admin = await prisma.admin.create({
         data: {
           userId: user.id,
+          nama: nama, // Menggunakan 'nama' dari req.body
+          bidangId: bidangId, // Menggunakan 'bidangId' dari req.body
         },
       });
 
+      // 7. Respon sukses
       res.status(201).json({
         status: true,
         message: 'Akun admin berhasil dibuat',
         data: { user, admin },
       });
     } catch (error) {
+      // Error handling jika bidangId yang dikirim tidak valid/tidak ada
+      if (error.code === 'P2003') {
+        // Foreign key constraint failed
+        return res.status(400).json({
+          status: false,
+          message: 'bidangId tidak valid atau tidak ditemukan',
+          data: null,
+        });
+      }
       next(error);
     }
   },
@@ -647,6 +668,98 @@ module.exports = {
       });
     } catch (error) {
       next(error);
+    }
+  },
+
+  getAdminProfile: async (req, res) => {
+    const userId = req.user.id; // Asumsi dari middleware auth
+
+    try {
+      const admin = await prisma.admin.findUnique({
+        where: {
+          userId: userId,
+        },
+        include: {
+          user: {
+            // Untuk ambil email
+            select: {
+              email: true,
+            },
+          },
+          bidang: {
+            // Untuk ambil nama bidang
+            select: {
+              id: true,
+              nama: true,
+            },
+          },
+        },
+      });
+
+      if (!admin) {
+        return res
+          .status(404)
+          .json({ message: 'Profil admin tidak ditemukan' });
+      }
+
+      // Data yang dikirim ke frontend
+      const profileData = {
+        nama: admin.nama,
+        email: admin.user.email,
+        tanggalBergabung: admin.createdAt,
+        // Kirim data bidang (ID dan Nama)
+        bidang: admin.bidang
+          ? { id: admin.bidang.id, nama: admin.bidang.nama }
+          : null,
+      };
+
+      res.status(200).json(profileData);
+    } catch (error) {
+      console.error('Error fetching admin profile:', error);
+      res.status(500).json({ message: 'Terjadi kesalahan pada server' });
+    }
+  },
+
+  changeAdminPassword: async (req, res) => {
+    const userId = req.user.id;
+    const { oldPassword, newPassword, confirmPassword } = req.body;
+
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: 'Semua field wajib diisi' });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res
+        .status(400)
+        .json({ message: 'Password baru dan konfirmasi tidak cocok' });
+    }
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        return res.status(404).json({ message: 'User tidak ditemukan' });
+      }
+
+      const isPasswordValid = await bcrypt.compare(oldPassword, user.password);
+      if (!isPasswordValid) {
+        return res.status(400).json({ message: 'Password lama salah' });
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: { password: hashedPassword },
+      });
+
+      res.status(200).json({ message: 'Password berhasil diubah' });
+    } catch (error) {
+      console.error('Error changing password:', error);
+      res.status(500).json({ message: 'Terjadi kesalahan pada server' });
     }
   },
 };
