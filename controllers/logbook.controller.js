@@ -49,18 +49,21 @@ module.exports = {
             lte: ajuan.tglSelesai,
           },
         },
+        select: {
+          id: true,
+          tanggal: true,
+          deskripsi: true,
+          logbookFile: true,
+          createdAt: true,
+        },
         orderBy: {
-          tanggal: 'asc',
+          tanggal: 'desc',
         },
       });
 
       res.status(200).json({
         message: 'Data logbook berhasil diambil',
         data: {
-          periode: {
-            tglMulai: ajuan.tglMulai,
-            tglSelesai: ajuan.tglSelesai,
-          },
           logbooks: logbooks,
         },
       });
@@ -76,8 +79,8 @@ module.exports = {
     }
   },
 
-  createOrUpdateLogbook: async (req, res) => {
-    const { tanggal, deskripsi } = req.body;
+  createLogbook: async (req, res) => {
+    const { tanggal, deskripsi, logbookFileUrl } = req.body;
 
     if (!tanggal || deskripsi === undefined) {
       return res
@@ -116,6 +119,14 @@ module.exports = {
         });
       }
 
+      const dataPayload = {
+        deskripsi: deskripsi,
+      };
+
+      if (logbookFileUrl) {
+        dataPayload.logbookFile = logbookFileUrl;
+      }
+
       const logbook = await prisma.logbook.upsert({
         where: {
           pesertaId_tanggal: {
@@ -123,13 +134,12 @@ module.exports = {
             tanggal: tanggalLogbook,
           },
         },
-        update: {
-          deskripsi: deskripsi,
-        },
+        update: dataPayload,
         create: {
           pesertaId: pesertaId,
           tanggal: tanggalLogbook,
           deskripsi: deskripsi,
+          logbookFile: logbookFileUrl || null,
         },
       });
 
@@ -202,7 +212,12 @@ module.exports = {
       const [logbooks, total] = await Promise.all([
         prisma.logbook.findMany({
           where: where,
-          include: {
+          select: {
+            id: true,
+            tanggal: true,
+            deskripsi: true,
+            logbookFile: true,
+            updatedAt: true,
             peserta: {
               select: {
                 namaLengkap: true,
@@ -234,6 +249,7 @@ module.exports = {
         tanggal: log.tanggal,
         kegiatan: log.deskripsi,
         tanggalSubmit: log.updatedAt,
+        logbookFile: log.logbookFile,
       }));
 
       res.status(200).json({
@@ -258,12 +274,18 @@ module.exports = {
 
       const logbook = await prisma.logbook.findUnique({
         where: { id: id },
-        include: {
+        select: {
+          id: true,
+          tanggal: true,
+          deskripsi: true,
+          logbookFile: true,
+          updatedAt: true,
           peserta: {
             select: {
               namaLengkap: true,
               instansi: true,
               pasFoto: true,
+              bidangId: true,
               bidang: {
                 select: {
                   nama: true,
@@ -302,6 +324,7 @@ module.exports = {
         tanggal: logbook.tanggal,
         kegiatan: logbook.deskripsi,
         tanggalSubmit: logbook.updatedAt,
+        logbookFile: logbook.logbookFile,
       };
 
       res.status(200).json({ data: formattedData });

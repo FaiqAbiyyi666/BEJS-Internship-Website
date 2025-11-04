@@ -15,6 +15,7 @@ const {
   uploadPasFoto,
   uploadBerkasAjuan,
   uploadLaporanAkhir,
+  uploadLogbookFile,
 } = require('../middlewares/upload.middleware');
 
 router.get(
@@ -72,7 +73,8 @@ router.post(
   '/logbook',
   restrict,
   isPesertaMagang,
-  logbook.createOrUpdateLogbook
+  uploadLogbookFile,
+  logbook.createLogbook
 );
 
 router.post(

@@ -252,10 +252,43 @@ const uploadLaporanAkhir = (req, res, next) => {
   });
 };
 
+const uploadLogbookFile = (req, res, next) => {
+  upload.single('logbookFile')(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ message: err.message });
+    }
+
+    if (!req.file) {
+      return next();
+    }
+
+    try {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const ext = path.extname(req.file.originalname);
+      const fileName = `logbook-${uniqueSuffix}${ext}`;
+
+      const result = await imagekit.upload({
+        file: req.file.buffer,
+        fileName: fileName,
+        folder: '/logbook_file/',
+      });
+
+      req.body.logbookFileUrl = result.url;
+      next();
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ message: 'Gagal mengunggah file logbook ke ImageKit.' });
+    }
+  });
+};
+
 module.exports = {
   uploadPasFoto,
   uploadBerkasAjuan,
   uploadSuratPenerimaan,
   uploadSertifikat,
   uploadLaporanAkhir,
+  uploadLogbookFile,
 };
