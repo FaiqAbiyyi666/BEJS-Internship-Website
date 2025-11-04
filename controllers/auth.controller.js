@@ -24,6 +24,7 @@ module.exports = {
         instansi,
         jurusan,
         alamat,
+        instagram,
       } = req.body;
 
       const pasFotoUrl = req.body.pasFotoUrl;
@@ -88,6 +89,7 @@ module.exports = {
           instansi,
           jurusan,
           alamat,
+          instagram: instagram,
           status: StatusPeserta.PENDING,
           pasFoto: pasFotoUrl,
         },
@@ -154,6 +156,29 @@ module.exports = {
           message: 'Password salah',
           data: null,
         });
+      }
+
+      if (user.role === 'peserta_magang') {
+        if (
+          !user.pesertaMagang ||
+          user.pesertaMagang.status !== StatusPeserta.APPROVED
+        ) {
+          let errorMessage =
+            'Akun Kamu belum disetujui oleh Admin. Cek Email secara berkala untuk melihat pemberitahuan verifikasi akun.';
+          if (user.pesertaMagang?.status === StatusPeserta.REJECTED) {
+            errorMessage =
+              'Pengajuan akun kamu telah ditolak. Periksa kamu kembali dengan baik dan benar';
+          } else if (user.pesertaMagang?.status === StatusPeserta.PENDING) {
+            errorMessage =
+              'Akun Kamu sedang ditinjau (Pending). Cek Email secara berkala untuk melihat pemberitahuan verifikasi akun.';
+          }
+
+          return res.status(403).json({
+            status: false,
+            message: errorMessage,
+            data: null,
+          });
+        }
       }
 
       const token = jwt.sign(

@@ -57,6 +57,7 @@ model PesertaMagang {
   instansi    String
   jurusan     String
   alamat      String
+  instagram   String?
   pasFoto     String        @map("pas_foto")
   status      StatusPeserta @default(PENDING)
   createdAt   DateTime      @default(now()) @map("created_at")

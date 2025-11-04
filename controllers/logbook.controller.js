@@ -204,8 +204,15 @@ module.exports = {
           where: where,
           include: {
             peserta: {
-              include: {
-                bidang: true,
+              select: {
+                namaLengkap: true,
+                instansi: true,
+                pasFoto: true,
+                bidang: {
+                  select: {
+                    nama: true,
+                  },
+                },
               },
             },
           },
@@ -223,7 +230,7 @@ module.exports = {
           ? log.peserta.bidang.nama
           : 'Belum Ditentukan',
         instansi: log.peserta.instansi,
-        avatar: log.peserta.namaLengkap.substring(0, 2).toUpperCase(),
+        pasFoto: log.peserta.pasFoto,
         tanggal: log.tanggal,
         kegiatan: log.deskripsi,
         tanggalSubmit: log.updatedAt,
@@ -253,8 +260,15 @@ module.exports = {
         where: { id: id },
         include: {
           peserta: {
-            include: {
-              bidang: true,
+            select: {
+              namaLengkap: true,
+              instansi: true,
+              pasFoto: true,
+              bidang: {
+                select: {
+                  nama: true,
+                },
+              },
             },
           },
         },
@@ -284,7 +298,7 @@ module.exports = {
         bidang: logbook.peserta.bidang
           ? logbook.peserta.bidang.nama
           : 'Belum Ditentukan',
-        avatar: logbook.peserta.namaLengkap.substring(0, 2).toUpperCase(),
+        pasFoto: logbook.peserta.pasFoto,
         tanggal: logbook.tanggal,
         kegiatan: logbook.deskripsi,
         tanggalSubmit: logbook.updatedAt,

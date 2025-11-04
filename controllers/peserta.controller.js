@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { PrismaClient, Role } = require('@prisma/client');
 const prisma = new PrismaClient();
-const sendEmail = require('../utils/sendEmail');
 
 module.exports = {
   getAuthenticatedUserProfile: async (req, res, next) => {
@@ -70,6 +69,7 @@ module.exports = {
           nimNis: user.pesertaMagang?.nimNis || null,
           jurusan: user.pesertaMagang?.jurusan || null,
           instansi: user.pesertaMagang?.instansi || null,
+          instagram: user.pesertaMagang?.instagram || null,
           tglLahir: user.pesertaMagang?.tglLahir || null,
           noTelepon: user.pesertaMagang?.noTelepon || null,
           nik: user.pesertaMagang?.nik || null,
@@ -86,8 +86,15 @@ module.exports = {
   updateUserProfile: async (req, res, next) => {
     try {
       const { id } = req.user;
-      const { namaLengkap, noTelepon, nimNis, instansi, jurusan, alamat } =
-        req.body;
+      const {
+        namaLengkap,
+        noTelepon,
+        nimNis,
+        instansi,
+        jurusan,
+        alamat,
+        instagram,
+      } = req.body;
 
       const peserta = await prisma.pesertaMagang.findFirst({
         where: { userId: id },
@@ -107,6 +114,7 @@ module.exports = {
         !nimNis ||
         !instansi ||
         !jurusan ||
+        !instagram ||
         !alamat
       ) {
         return res.status(400).json({
@@ -134,6 +142,7 @@ module.exports = {
         nimNis,
         instansi,
         jurusan,
+        instagram,
         alamat,
       };
 
@@ -211,6 +220,7 @@ module.exports = {
           noTelepon: profile.noTelepon || null,
           nik: profile.nik || null,
           alamat: profile.alamat || null,
+          instagram: profile.instagram || null,
           tglLahir: profile.tglLahir || null,
           bidang: bidang.nama || 'Belum Mendaftar Bidang',
           periodeMulai: ajuan.tglMulai || '-',
