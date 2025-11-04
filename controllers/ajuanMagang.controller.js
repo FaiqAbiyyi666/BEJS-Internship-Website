@@ -62,7 +62,6 @@ module.exports = {
           data: null,
         });
       }
-
       const userIdFromToken = req.user.id;
 
       const {
@@ -80,80 +79,113 @@ module.exports = {
       } = req.body;
 
       const berkas_urls = req.body.berkas_urls;
-
-      if (!berkas_urls || Object.keys(berkas_urls).length === 0) {
+      if (
+        !berkas_urls ||
+        !berkas_urls.surat_pengantar ||
+        !berkas_urls.proposal_magang ||
+        !berkas_urls.cv ||
+        !berkas_urls.ktp ||
+        !berkas_urls.surat_bakesbang_sda
+      ) {
         return res.status(400).json({
           status: false,
-          message: 'Upload berkas gagal atau tidak lengkap.',
+          message:
+            'Upload berkas wajib gagal atau tidak lengkap. Pastikan semua file (kecuali Bakesbangpol Prov) terisi.',
           data: null,
         });
       }
 
-      const dataUntukDb = {
-        peserta_namaLengkap: namaLengkap,
-        peserta_nimNis: nis_nim,
-        peserta_instansi: instansi,
-        peserta_jurusan: jurusan,
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-        ajuan_kategoriMagang: kategori,
-        ajuan_statusPendidikan: statusPendidikan,
-        ajuan_jenjangPendidikan: jenjangPendidikan,
-        ajuan_instansi: instansi,
-        ajuan_jurusan: jurusan,
-        ajuan_tglMulai: new Date(durasiMulai),
-        ajuan_tglSelesai: new Date(durasiSelesai),
-        ajuan_temaMagang: tema,
-        ajuan_bidangId: bidangPilihan,
+      const peserta = await prisma.pesertaMagang.findUnique({
+        where: { userId: userIdFromToken },
+        select: {
+          id: true,
+          ajuan: {
+            where: {
+              OR: [
+                { statusUsulan: 'PENDING' },
+                {
+                  statusUsulan: 'DITERIMA',
+                  tglSelesai: { gte: today },
+                },
+              ],
+            },
+            take: 1,
+          },
+        },
+      });
 
-        berkas_suratPengantar: berkas_urls.surat_pengantar,
-        berkas_proposalMagang: berkas_urls.proposal_magang,
-        berkas_cv: berkas_urls.cv,
-        berkas_pasFoto: berkas_urls.ktp,
-        berkas_bakesbangpolSda: berkas_urls.surat_bakesbang_sda,
-        berkas_bakesbangpolSby: berkas_urls.surat_bakesbang_prov,
+      if (!peserta) {
+        return res.status(404).json({
+          status: false,
+          message: 'Profil peserta magang tidak ditemukan.',
+          data: null,
+        });
+      }
+
+      if (peserta.ajuan && peserta.ajuan.length > 0) {
+        const existingAjuan = peserta.ajuan[0];
+        let message =
+          'Anda sudah memiliki ajuan magang yang sedang diproses (PENDING).';
+        if (existingAjuan.statusUsulan === 'DITERIMA') {
+          message =
+            'Anda sudah diterima magang dan periode magang Anda belum selesai.';
+        }
+        return res.status(400).json({
+          status: false,
+          message: `${message} Anda dapat mengajukan lagi setelah ajuan ditolak atau periode magang selesai.`,
+          data: null,
+        });
+      }
+
+      const dataBerkas = {
+        suratPengantar: berkas_urls.surat_pengantar,
+        proposalMagang: berkas_urls.proposal_magang,
+        cv: berkas_urls.cv,
+        pasFoto: berkas_urls.ktp,
+        suratBakesbangpolSda: berkas_urls.surat_bakesbang_sda,
+        ...(berkas_urls.surat_bakesbang_prov && {
+          suratBakesbangpolSby: berkas_urls.surat_bakesbang_prov,
+        }),
       };
 
       const ajuanBaru = await prisma.$transaction(async (tx) => {
-        const peserta = await tx.pesertaMagang.update({
-          where: { userId: userIdFromToken },
+        await tx.pesertaMagang.update({
+          where: { id: peserta.id },
           data: {
-            namaLengkap: dataUntukDb.peserta_namaLengkap,
-            nimNis: dataUntukDb.peserta_nimNis,
-            instansi: dataUntukDb.peserta_instansi,
-            jurusan: dataUntukDb.peserta_jurusan,
+            namaLengkap: namaLengkap,
+            nimNis: nis_nim,
+            instansi: instansi,
+            jurusan: jurusan,
           },
-          select: { id: true },
         });
 
-        const kuotaTersedia = await cekKuota(dataUntukDb.ajuan_bidangId);
+        const kuotaTersedia = await cekKuota(bidangPilihan);
         if (!kuotaTersedia) {
           throw new Error('Kuota untuk bidang ini sudah penuh.');
         }
 
         const ajuan = await tx.ajuanMagang.create({
           data: {
-            kategoriMagang: dataUntukDb.ajuan_kategoriMagang,
-            statusPendidikan: dataUntukDb.ajuan_statusPendidikan,
-            jenjangPendidikan: dataUntukDb.ajuan_jenjangPendidikan,
-            instansi: dataUntukDb.ajuan_instansi,
-            jurusan: dataUntukDb.ajuan_jurusan,
-            tglMulai: dataUntukDb.ajuan_tglMulai,
-            tglSelesai: dataUntukDb.ajuan_tglSelesai,
-            temaMagang: dataUntukDb.ajuan_temaMagang,
+            kategoriMagang: kategori,
+            statusPendidikan: statusPendidikan,
+            jenjangPendidikan: jenjangPendidikan,
+            instansi: instansi,
+            jurusan: jurusan,
+            tglMulai: new Date(durasiMulai),
+            tglSelesai: new Date(durasiSelesai),
+            temaMagang: tema,
             statusUsulan: 'PENDING',
             peserta: { connect: { id: peserta.id } },
-            bidang: { connect: { id: dataUntukDb.ajuan_bidangId } },
+            bidang: { connect: { id: bidangPilihan } },
           },
         });
 
         await tx.berkasMagang.create({
           data: {
-            suratPengantar: dataUntukDb.berkas_suratPengantar,
-            proposalMagang: dataUntukDb.berkas_proposalMagang,
-            cv: dataUntukDb.berkas_cv,
-            pasFoto: dataUntukDb.berkas_pasFoto,
-            suratBakesbangpolSda: dataUntukDb.berkas_bakesbangpolSda,
-            suratBakesbangpolSby: dataUntukDb.berkas_bakesbangpolSby,
+            ...dataBerkas,
             peserta: { connect: { id: peserta.id } },
           },
         });
@@ -178,7 +210,7 @@ module.exports = {
       if (error.code === 'P2025') {
         return res.status(404).json({
           status: false,
-          message: 'Gagal memperbarui profil: Peserta magang tidak ditemukan.',
+          message: 'Gagal memproses: Record terkait tidak ditemukan (P2025).',
           data: null,
         });
       }
@@ -188,9 +220,6 @@ module.exports = {
   },
 
   getAjuanMagangByPeserta: async (req, res, next) => {
-    console.log(
-      '--- ENTERING getAjuanMagangByPeserta (VERSION WITH SELECT ID) ---'
-    );
     try {
       if (!req.user || !req.user.id) {
         return res.status(401).json({
@@ -233,11 +262,6 @@ module.exports = {
         },
         orderBy: { createdAt: 'desc' },
       });
-
-      console.log(
-        'Data RIWAYAT AJUAN yang akan dikirim ke frontend:',
-        JSON.stringify(riwayatAjuan, null, 2)
-      );
 
       res.status(200).json({
         status: true,

@@ -74,10 +74,26 @@ const uploadBerkasAjuan = (req, res, next) => {
       return res.status(400).json({ message: err.message });
     }
 
+    const requiredFields = [
+      'proposal_magang',
+      'cv',
+      'ktp',
+      'surat_pengantar',
+      'surat_bakesbang_sda',
+    ];
+
     if (!req.files || Object.keys(req.files).length === 0) {
       return res
         .status(400)
         .json({ message: 'Tidak ada file berkas yang diunggah.' });
+    }
+
+    for (const fieldName of requiredFields) {
+      if (!req.files[fieldName] || req.files[fieldName].length === 0) {
+        return res.status(400).json({
+          message: `Berkas wajib '${fieldName}' tidak ditemukan atau kosong.`,
+        });
+      }
     }
 
     try {

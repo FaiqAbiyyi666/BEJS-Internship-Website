@@ -212,7 +212,7 @@ model BerkasMagang {
   cv                   String
   pasFoto              String   @map("pas_foto")
   suratBakesbangpolSda String   @map("surat_bakesbangpol_sda")
-  suratBakesbangpolSby String   @map("surat_bakesbangpol_sby")
+  suratBakesbangpolSby String?  @map("surat_bakesbangpol_sby")
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @updatedAt @map("updated_at")
 
