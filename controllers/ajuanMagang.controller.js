@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const sendEmail = require('../utils/sendEmail');
+const { formatDate } = require('../utils/formatedDate');
 const ejs = require('ejs');
 const path = require('path');
 
@@ -40,15 +41,6 @@ const cekKuota = async (bidangId) => {
     console.error('Error saat menghitung jumlah ajuan:', countError);
     throw new Error(`Gagal menghitung kuota: ${countError.message}`);
   }
-};
-
-const formatDate = (date) => {
-  if (!date) return 'N/A';
-  return new Date(date).toLocaleDateString('id-ID', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
 };
 
 module.exports = {
@@ -144,10 +136,10 @@ module.exports = {
         suratPengantar: berkas_urls.surat_pengantar,
         proposalMagang: berkas_urls.proposal_magang,
         cv: berkas_urls.cv,
-        pasFoto: berkas_urls.ktp,
+        ktp: berkas_urls.ktp,
         suratBakesbangpolSda: berkas_urls.surat_bakesbang_sda,
         ...(berkas_urls.surat_bakesbang_prov && {
-          suratBakesbangpolSby: berkas_urls.surat_bakesbang_prov,
+          suratBakesbangpolProv: berkas_urls.surat_bakesbang_prov,
         }),
       };
 
@@ -186,7 +178,7 @@ module.exports = {
         await tx.berkasMagang.create({
           data: {
             ...dataBerkas,
-            peserta: { connect: { id: peserta.id } },
+            ajuan: { connect: { id: peserta.id } },
           },
         });
 
@@ -301,16 +293,8 @@ module.exports = {
               nama: true,
             },
           },
-          peserta: {
-            include: {
-              berkas: {
-                orderBy: {
-                  createdAt: 'desc',
-                },
-                take: 1,
-              },
-            },
-          },
+          peserta: true,
+          berkas: true,
         },
       });
 
@@ -363,9 +347,16 @@ module.exports = {
       }
 
       if (status && status !== 'all') {
-        const validStatus = ['PENDING', 'DITERIMA', 'DITOLAK'];
-        if (validStatus.includes(status.toUpperCase())) {
-          whereClause.statusUsulan = status.toUpperCase();
+        const statusMap = {
+          PENDING: 'PENDING',
+          DITERIMA: 'APPROVED',
+          DITOLAK: 'REJECTED',
+        };
+
+        const prismaStatus = statusMap[status.toUpperCase()];
+
+        if (prismaStatus) {
+          whereClause.statusUsulan = prismaStatus;
         }
       }
 
@@ -413,15 +404,12 @@ module.exports = {
                 nimNis: true,
                 user: { select: { email: true } },
                 pasFoto: true,
-                berkas: {
-                  orderBy: { createdAt: 'desc' },
-                  take: 1,
-                },
               },
             },
             bidang: {
               select: { nama: true },
             },
+            berkas: true,
           },
           orderBy: {
             createdAt: 'desc',
@@ -460,15 +448,16 @@ module.exports = {
         });
       }
 
+      const statusUsulanEnum = status === 'DITERIMA' ? 'APPROVED' : 'REJECTED';
+      const statusPesertaEnum = status === 'DITERIMA' ? 'APPROVED' : 'REJECTED';
+
       const ajuan = await prisma.ajuanMagang.findUnique({
         where: { id: ajuanId },
         select: {
           id: true,
           statusUsulan: true,
-
           tglMulai: true,
           tglSelesai: true,
-
           peserta: {
             select: {
               id: true,
@@ -490,7 +479,7 @@ module.exports = {
         });
       }
 
-      if (status === 'DITERIMA' && ajuan.statusUsulan !== 'DITERIMA') {
+      if (status === 'DITERIMA' && ajuan.statusUsulan !== 'APPROVED') {
         const kuotaTersedia = await cekKuota(ajuan.bidang.id);
         if (!kuotaTersedia) {
           return res.status(400).json({
@@ -501,13 +490,10 @@ module.exports = {
         }
       }
 
-      const statusUsulanStr = status;
-      const statusPesertaEnum = status === 'DITERIMA' ? 'APPROVED' : 'REJECTED';
-
       await prisma.$transaction(async (tx) => {
         await tx.ajuanMagang.update({
           where: { id: ajuanId },
-          data: { statusUsulan: statusUsulanStr },
+          data: { statusUsulan: statusUsulanEnum },
         });
 
         await tx.pesertaMagang.update({
@@ -603,7 +589,7 @@ module.exports = {
     try {
       const daftarAjuanDiterima = await prisma.ajuanMagang.findMany({
         where: {
-          statusUsulan: 'DITERIMA',
+          statusUsulan: 'APPROVED',
           suratPenerimaan: null,
         },
         select: {
@@ -679,10 +665,10 @@ module.exports = {
           .status(404)
           .json({ status: false, message: 'Ajuan Magang tidak ditemukan.' });
       }
-      if (ajuan.statusUsulan !== 'DITERIMA') {
+      if (ajuan.statusUsulan !== 'APPROVED') {
         return res.status(400).json({
           status: false,
-          message: 'Ajuan ini belum berstatus DITERIMA.',
+          message: 'Ajuan ini belum berstatus DITERIMA (APPROVED).',
         });
       }
       if (ajuan.suratPenerimaan) {
@@ -841,12 +827,20 @@ module.exports = {
       const take = parseInt(limit);
       let whereClause = {};
 
-      if (
-        status &&
-        ['PENDING', 'DITERIMA', 'DITOLAK'].includes(status.toUpperCase())
-      ) {
-        whereClause.statusUsulan = status.toUpperCase();
+      if (status) {
+        const statusMap = {
+          PENDING: 'PENDING',
+          DITERIMA: 'APPROVED',
+          DITOLAK: 'REJECTED',
+        };
+
+        const prismaStatus = statusMap[status.toUpperCase()];
+
+        if (prismaStatus) {
+          whereClause.statusUsulan = prismaStatus;
+        }
       }
+
       if (bidang) {
         whereClause.bidang = {
           nama: { contains: bidang },
@@ -888,7 +882,11 @@ module.exports = {
         tema: ajuan.temaMagang,
         bidang: ajuan.bidang.nama,
         status:
-          ajuan.statusUsulan === 'PENDING' ? 'Diproses' : ajuan.statusUsulan,
+          ajuan.statusUsulan === 'APPROVED'
+            ? 'DITERIMA'
+            : ajuan.statusUsulan === 'REJECTED'
+            ? 'DITOLAK'
+            : 'Diproses',
         tglMulai: ajuan.tglMulai,
         tglSelesai: ajuan.tglSelesai,
         createdAt: ajuan.createdAt,

@@ -25,6 +25,12 @@ enum StatusPeserta {
   REJECTED
 }
 
+enum StatusAjuan {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum StatusLaporan {
   PENDING
   APPROVED
@@ -53,46 +59,47 @@ model PesertaMagang {
   tglLahir    DateTime      @map("tgl_lahir") @db.Date
   noTelepon   String        @map("no_telepon")
   nik         String
-  nimNis      String        @map("nim_nis")
-  instansi    String
-  jurusan     String
+  nimNis      String?       @map("nim_nis")
+  instansi    String?
+  jurusan     String?
   alamat      String
-  instagram   String?
+  instagram   String
   pasFoto     String        @map("pas_foto")
   status      StatusPeserta @default(PENDING)
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  userId     String               @unique @map("user_id")
-  bidangId   String?              @map("bidang_id")
-  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bidang     KuotaBidang?         @relation(fields: [bidangId], references: [id], onUpdate: Cascade, onDelete: SetNull)
-  ajuan      AjuanMagang[]
-  logbook    Logbook[]
-  laporan    LaporanHasilMagang[]
-  sertifikat Sertifikat[]
-  berkas     BerkasMagang[]
+  userId   String        @unique @map("user_id")
+  bidangId String?       @map("bidang_id")
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bidang   KuotaBidang?  @relation(fields: [bidangId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  ajuan    AjuanMagang[]
 }
 
 model AjuanMagang {
-  id                String   @id @default(uuid())
-  kategoriMagang    String   @map("kategori_magang")
-  statusPendidikan  String   @map("status_pendidikan")
-  jenjangPendidikan String   @map("jenjang_pendidikan")
-  instansi          String
-  jurusan           String
-  tglMulai          DateTime @map("tgl_mulai") @db.Date
-  tglSelesai        DateTime @map("tgl_selesai") @db.Date
-  temaMagang        String   @map("tema_magang")
-  statusUsulan      String   @map("status_usulan") // 'DISETUJUI', 'PENDING', 'DITOLAK'
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id                String      @id @default(uuid())
+  kategoriMagang    String      @map("kategori_magang")
+  statusPendidikan  String      @map("status_pendidikan")
+  jenjangPendidikan String      @map("jenjang_pendidikan")
+  instansi          String?
+  jurusan           String?
+  tglMulai          DateTime    @map("tgl_mulai") @db.Date
+  tglSelesai        DateTime    @map("tgl_selesai") @db.Date
+  temaMagang        String      @map("tema_magang")
+  statusUsulan      StatusAjuan @default(PENDING) @map("status_usulan")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
 
-  pesertaId       String           @map("peserta_id")
-  bidangId        String           @map("bidang_id")
-  peserta         PesertaMagang    @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  bidang          KuotaBidang      @relation(fields: [bidangId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  pesertaId String        @map("peserta_id")
+  bidangId  String        @map("bidang_id")
+  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  bidang    KuotaBidang   @relation(fields: [bidangId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
   suratPenerimaan SuratPenerimaan?
+  logbook         Logbook[]
+  laporan         LaporanHasilMagang?
+  sertifikat      Sertifikat?
+  berkas          BerkasMagang?
 }
 
 model SuratPenerimaan {
@@ -150,10 +157,10 @@ model Logbook {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  pesertaId String        @map("peserta_id")
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ajuanId String      @map("ajuan_id")
+  ajuan   AjuanMagang @relation(fields: [ajuanId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  @@unique([pesertaId, tanggal])
+  @@unique([ajuanId, tanggal])
 }
 
 model KritikSaran {
@@ -187,38 +194,35 @@ model LaporanHasilMagang {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  pesertaId String        @map("peserta_id")
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ajuanId String      @unique @map("ajuan_id")
+  ajuan   AjuanMagang @relation(fields: [ajuanId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
 
 model Sertifikat {
   id           String   @id @default(uuid())
   noSertifikat String   @map("no_sertifikat")
   nilai        Int
-  bidang       String
   fileUrl      String   @map("file_url")
-  tglMulai     DateTime @map("tgl_mulai") @db.Date
-  tglSelesai   DateTime @map("tgl_selesai") @db.Date
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  pesertaId String        @map("peserta_id")
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ajuanId String      @unique @map("ajuan_id")
+  ajuan   AjuanMagang @relation(fields: [ajuanId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
 
 model BerkasMagang {
-  id                   String   @id @default(uuid())
-  suratPengantar       String   @map("surat_pengantar")
-  proposalMagang       String   @map("proposal_magang")
-  cv                   String
-  pasFoto              String   @map("pas_foto")
-  suratBakesbangpolSda String   @map("surat_bakesbangpol_sda")
-  suratBakesbangpolSby String?  @map("surat_bakesbangpol_sby")
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
+  id                    String   @id @default(uuid())
+  suratPengantar        String   @map("surat_pengantar")
+  proposalMagang        String   @map("proposal_magang")
+  cv                    String
+  ktp                   String
+  suratBakesbangpolSda  String   @map("surat_bakesbangpol_sda")
+  suratBakesbangpolProv String?  @map("surat_bakesbangpol_prov")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
-  pesertaId String        @map("peserta_id")
-  peserta   PesertaMagang @relation(fields: [pesertaId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  ajuanId String      @unique @map("ajuan_id")
+  ajuan   AjuanMagang @relation(fields: [ajuanId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 }
 
 model Notifikasi {

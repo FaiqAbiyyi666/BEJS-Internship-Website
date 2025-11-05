@@ -1,17 +1,14 @@
-// Impor PrismaClient dan Prisma (untuk $queryRaw)
 const { PrismaClient, Prisma } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 function getBusinessDays(startDate, endDate) {
   let count = 0;
-  // Pastikan kita bekerja dengan objek Date
   const curDate = new Date(startDate.getTime());
   const lastDate = new Date(endDate.getTime());
 
   while (curDate <= lastDate) {
     const dayOfWeek = curDate.getDay();
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      // 0 = Minggu, 6 = Sabtu
       count++;
     }
     curDate.setDate(curDate.getDate() + 1);
@@ -19,17 +16,14 @@ function getBusinessDays(startDate, endDate) {
   return count;
 }
 
-/**
- * Menerjemahkan status usulan dari database ke teks yang ramah pengguna.
- */
 function mapStatusUsulan(status) {
   if (!status) return null; // 'Belum Mengajukan Usulan' akan ditangani di frontend
   switch (status) {
     case 'PENDING':
       return 'Menunggu Persetujuan';
-    case 'DITERIMA':
+    case 'APPROVED': // <= DIUBAH DARI DITERIMA
       return 'Diterima';
-    case 'DITOLAK':
+    case 'REJECTED':
       return 'Ditolak';
     default:
       return status;
@@ -86,7 +80,7 @@ module.exports = {
         prisma.ajuanMagang.count({ where: { statusUsulan: 'PENDING' } }),
 
         prisma.ajuanMagang.count({
-          where: { statusUsulan: 'DISETUJUI', suratPenerimaan: null },
+          where: { statusUsulan: 'APPROVED', suratPenerimaan: null },
         }),
 
         prisma.laporanHasilMagang.count({ where: { status: 'APPROVED' } }),
@@ -230,13 +224,13 @@ module.exports = {
           bidang: { select: { nama: true } },
           ajuan: {
             orderBy: { createdAt: 'desc' },
-            include: { bidang: { select: { nama: true } } },
+            include: {
+              bidang: { select: { nama: true } },
+              logbook: { select: { id: true, tanggal: true } },
+              laporan: true,
+              sertifikat: { select: { id: true } },
+            },
           },
-          logbook: { select: { id: true, tanggal: true } },
-          laporan: {
-            orderBy: { createdAt: 'desc' },
-          },
-          sertifikat: { select: { id: true } },
         },
       });
 
@@ -254,7 +248,7 @@ module.exports = {
       const latestAjuan = peserta.ajuan[0] || null;
 
       const approvedAjuan =
-        peserta.ajuan.find((a) => a.statusUsulan === 'DITERIMA') || null;
+        peserta.ajuan.find((a) => a.statusUsulan === 'APPROVED') || null;
 
       // Logika sisa (laporanProgress, responseData) sudah benar
       let laporanProgress = 0;
@@ -262,7 +256,7 @@ module.exports = {
         const tglMulai = new Date(approvedAjuan.tglMulai);
         const tglSelesai = new Date(approvedAjuan.tglSelesai);
         const totalHariKerja = getBusinessDays(tglMulai, tglSelesai);
-        const logbookSubmitted = peserta.logbook.length;
+        const logbookSubmitted = approvedAjuan.logbook.length;
 
         if (totalHariKerja > 0) {
           laporanProgress = Math.round(
@@ -272,7 +266,8 @@ module.exports = {
         }
       }
 
-      const latestLaporan = peserta.laporan[0] || null;
+      const laporanAkhirData = approvedAjuan?.laporan || null;
+      const sertifikatData = approvedAjuan?.sertifikat || null;
 
       const responseData = {
         namaLengkap: peserta.namaLengkap,
@@ -292,10 +287,9 @@ module.exports = {
         bidangUsulan: latestAjuan?.bidang.nama || null,
         tanggalPengajuan: latestAjuan?.createdAt || null,
         laporanProgress: laporanProgress,
-        laporanAkhir: mapStatusLaporan(latestLaporan?.status),
+        laporanAkhir: mapStatusLaporan(laporanAkhirData?.status),
         ulasan: ulasan ? 'Sudah dikirim' : 'Belum dikirim',
-        sertifikat:
-          peserta.sertifikat.length > 0 ? 'Sudah terbit' : 'Belum terbit',
+        sertifikat: sertifikatData ? 'Sudah terbit' : 'Belum terbit',
       };
 
       res.status(200).json({

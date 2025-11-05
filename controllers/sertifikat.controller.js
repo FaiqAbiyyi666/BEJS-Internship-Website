@@ -9,28 +9,31 @@ const ITEMS_PER_PAGE = 10;
 module.exports = {
   kirimSertifikat: async (req, res, next) => {
     try {
-      const { pesertaId, noSertifikat, nilai } = req.body;
+      const { ajuanId, noSertifikat, nilai } = req.body;
       const { fileUrl } = req.body;
 
-      if (!pesertaId || !noSertifikat || !nilai || !fileUrl) {
+      if (!ajuanId || !noSertifikat || !nilai || !fileUrl) {
         return res.status(400).json({
           status: false,
-          message: 'Peserta, nomor sertifikat, nilai, dan file wajib diisi.',
+          message: 'Ajuan, nomor sertifikat, nilai, dan file wajib diisi.',
           data: null,
         });
       }
 
-      const ajuanDiterima = await prisma.ajuanMagang.findFirst({
-        where: {
-          pesertaId: pesertaId,
-          statusUsulan: 'DITERIMA',
-        },
+      const ajuan = await prisma.ajuanMagang.findUnique({
+        where: { id: ajuanId },
         include: {
           bidang: true,
+          peserta: { include: { user: true } },
+          laporan: true,
+          _count: {
+            select: { logbook: true },
+          },
+          sertifikat: true,
         },
       });
 
-      if (!ajuanDiterima) {
+      if (!ajuan || ajuan.statusUsulan !== 'APPROVED') {
         return res.status(404).json({
           status: false,
           message:
@@ -39,40 +42,81 @@ module.exports = {
         });
       }
 
+      if (ajuan.sertifikat) {
+        return res.status(400).json({
+          status: false,
+          message:
+            'Gagal. Sertifikat untuk ajuan ini sudah pernah diterbitkan.',
+          data: null,
+        });
+      }
+
+      if (ajuan.tglSelesai >= new Date()) {
+        return res.status(400).json({
+          status: false,
+          message: `Gagal. Periode magang belum selesai (Selesai pada: ${ajuan.tglSelesai.toLocaleDateString(
+            'id-ID'
+          )}).`,
+          data: null,
+        });
+      }
+
+      if (!ajuan.laporan) {
+        return res.status(400).json({
+          status: false,
+          message: 'Gagal. Peserta belum mengunggah laporan akhir.',
+          data: null,
+        });
+      }
+
+      const ulasan = await prisma.ulasanMagang.findFirst({
+        where: { userId: ajuan.peserta.userId },
+      });
+      if (!ulasan) {
+        return res.status(400).json({
+          status: false,
+          message: 'Gagal. Peserta belum mengisi ulasan magang.',
+          data: null,
+        });
+      }
+
+      const tglMulai = ajuan.tglMulai;
+      const tglSelesai = ajuan.tglSelesai;
+
+      const diffTime = Math.abs(tglSelesai - tglMulai);
+      const expectedLogbooks = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+      const actualLogbooks = ajuan._count.logbook;
+
+      if (actualLogbooks < expectedLogbooks) {
+        return res.status(400).json({
+          status: false,
+          message: `Gagal. Logbook peserta belum lengkap (Terisi: ${actualLogbooks} / Wajib: ${expectedLogbooks} hari).`,
+          data: null,
+        });
+      }
+
       const newSertifikat = await prisma.sertifikat.create({
         data: {
           noSertifikat: noSertifikat,
           nilai: parseInt(nilai, 10),
-          bidang: ajuanDiterima.bidang.nama,
           fileUrl: fileUrl,
-          tglMulai: ajuanDiterima.tglMulai,
-          tglSelesai: ajuanDiterima.tglSelesai,
-          peserta: {
-            connect: { id: pesertaId },
-          },
-        },
-        include: {
-          peserta: {
-            select: {
-              id: true,
-              namaLengkap: true,
-              user: { select: { email: true } },
-            },
+          ajuan: {
+            connect: { id: ajuanId },
           },
         },
       });
 
-      const { email: emailPeserta } = newSertifikat.peserta.user;
-      const { namaLengkap: namaPeserta } = newSertifikat.peserta;
+      const { email: emailPeserta } = ajuan.peserta.user;
+      const { namaLengkap: namaPeserta } = ajuan.peserta;
 
       if (!emailPeserta) {
         console.error(
-          `Gagal mengirim email sertifikat: Email tidak ditemukan untuk peserta ${namaPeserta} (ID: ${newSertifikat.peserta.id})`
+          `Gagal mengirim email sertifikat: Email tidak ditemukan untuk peserta ${namaPeserta} (ID: ${ajuan.peserta.id})`
         );
-
         return res.status(201).json({
           status: true,
-          message: `Sertifikat berhasil dikirim. PERINGATAN: Notifikasi email GAGAL terkirim (email peserta tidak terdaftar).`,
+          message: `Sertifikat berhasil dikirim. PERINGATAN: Notifikasi email GAGAL terkirim.`,
           data: newSertifikat,
         });
       }
@@ -81,7 +125,7 @@ module.exports = {
       const emailSubject = 'Sertifikat Magang Anda Telah Terbit! 📬';
       const templateData = {
         namaPeserta: namaPeserta,
-        namaBidang: newSertifikat.bidang,
+        namaBidang: ajuan.bidang.nama,
         downloadLink: downloadLink,
       };
 

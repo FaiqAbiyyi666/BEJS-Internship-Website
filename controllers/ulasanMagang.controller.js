@@ -1,6 +1,21 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+function calculateWorkdays(startDate, endDate) {
+  let count = 0;
+  const currentDate = new Date(startDate.getTime());
+  const lastDate = new Date(endDate.getTime());
+
+  while (currentDate <= lastDate) {
+    const dayOfWeek = currentDate.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      count++;
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  return count;
+}
+
 module.exports = {
   createUlasan: async (req, res, next) => {
     try {
@@ -21,6 +36,90 @@ module.exports = {
           status: false,
           message: 'Ulasan dan rating wajib diisi.',
           data: null,
+        });
+      }
+
+      const existingUlasan = await prisma.ulasanMagang.findFirst({
+        where: { userId: userId },
+      });
+
+      if (existingUlasan) {
+        return res.status(409).json({
+          status: false,
+          message: 'Anda sudah pernah mengirim ulasan.',
+        });
+      }
+
+      const peserta = await prisma.pesertaMagang.findUnique({
+        where: { userId: userId },
+        select: { id: true },
+      });
+
+      if (!peserta) {
+        return res.status(403).json({
+          status: false,
+          message: 'Hanya peserta magang yang dapat mengirim ulasan.',
+        });
+      }
+
+      const ajuan = await prisma.ajuanMagang.findFirst({
+        where: {
+          pesertaId: peserta.id,
+          statusUsulan: 'APPROVED',
+        },
+        orderBy: {
+          tglSelesai: 'desc',
+        },
+        select: {
+          id: true,
+          tglMulai: true,
+          tglSelesai: true,
+          laporan: {
+            select: { id: true },
+          },
+        },
+      });
+
+      if (!ajuan) {
+        return res.status(404).json({
+          status: false,
+          message: 'Data magang Anda yang disetujui tidak ditemukan.',
+        });
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tglSelesai = new Date(ajuan.tglSelesai);
+
+      if (today <= tglSelesai) {
+        return res.status(403).json({
+          status: false,
+          message: `Anda baru bisa memberi ulasan setelah periode magang Anda berakhir (setelah ${tglSelesai.toLocaleDateString(
+            'id-ID'
+          )}).`,
+        });
+      }
+
+      if (!ajuan.laporan) {
+        return res.status(403).json({
+          status: false,
+          message:
+            'Anda harus mengirim Laporan Hasil Magang terlebih dahulu sebelum dapat memberi ulasan.',
+        });
+      }
+
+      const expectedLogbooks = calculateWorkdays(
+        ajuan.tglMulai,
+        ajuan.tglSelesai
+      );
+      const logbookCount = await prisma.logbook.count({
+        where: { ajuanId: ajuan.id },
+      });
+
+      if (logbookCount < expectedLogbooks) {
+        return res.status(403).json({
+          status: false,
+          message: `Anda harus melengkapi semua logbook harian (${logbookCount} dari ${expectedLogbooks} hari kerja) sebelum memberi ulasan.`,
         });
       }
 

@@ -2,6 +2,21 @@ const jwt = require('jsonwebtoken');
 const { PrismaClient, Role } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+const formatDate = (date) => {
+  if (!date) return null;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString().split('T')[0];
+};
+
+const getWeekStartDate = (date) => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diff));
+  return formatDate(monday);
+};
+
 module.exports = {
   getAuthenticatedUserProfile: async (req, res, next) => {
     try {
@@ -31,6 +46,7 @@ module.exports = {
         ...peserta,
         email: peserta.user.email,
         role: peserta.user.role,
+        tglLahir: formatDate(peserta.tglLahir),
       };
       delete profileData.user;
 
@@ -70,7 +86,7 @@ module.exports = {
           jurusan: user.pesertaMagang?.jurusan || null,
           instansi: user.pesertaMagang?.instansi || null,
           instagram: user.pesertaMagang?.instagram || null,
-          tglLahir: user.pesertaMagang?.tglLahir || null,
+          tglLahir: formatDate(user.pesertaMagang?.tglLahir) || null,
           noTelepon: user.pesertaMagang?.noTelepon || null,
           nik: user.pesertaMagang?.nik || null,
           alamat: user.pesertaMagang?.alamat || null,
@@ -108,15 +124,7 @@ module.exports = {
         });
       }
 
-      if (
-        !namaLengkap ||
-        !noTelepon ||
-        !nimNis ||
-        !instansi ||
-        !jurusan ||
-        !instagram ||
-        !alamat
-      ) {
+      if (!namaLengkap || !noTelepon || !instagram || !alamat) {
         return res.status(400).json({
           status: false,
           message: 'Semua kolom yang dapat diedit wajib diisi',
@@ -139,9 +147,9 @@ module.exports = {
       const dataToUpdate = {
         namaLengkap,
         noTelepon,
-        nimNis,
-        instansi,
-        jurusan,
+        nimNis: nimNis || null,
+        instansi: instansi || null,
+        jurusan: jurusan || null,
         instagram,
         alamat,
       };
@@ -179,12 +187,15 @@ module.exports = {
                 take: 1,
                 include: {
                   bidang: {
-                    select: { nama: true },
+                    select: { nama: true, id: true },
+                  },
+                  sertifikat: {
+                    take: 1,
+                  },
+                  logbook: {
+                    orderBy: { tanggal: 'asc' },
                   },
                 },
-              },
-              sertifikat: {
-                take: 1,
               },
             },
           },
@@ -207,7 +218,13 @@ module.exports = {
         const ajuan =
           profile.ajuan && profile.ajuan.length > 0 ? profile.ajuan[0] : {};
         const bidang = ajuan.bidang || {};
-        const sertifikat = profile.sertifikat && profile.sertifikat.length > 0;
+        const sertifikat = ajuan.sertifikat ? true : false;
+        const flatLogbook = (ajuan.logbook || []).map((entry) => ({
+          id: entry.id,
+          tanggal: formatDate(entry.tanggal),
+          isi: entry.deskripsi || '',
+          done: entry.deskripsi ? entry.deskripsi.trim().length > 0 : false,
+        }));
 
         return {
           id: user.id,
@@ -221,18 +238,19 @@ module.exports = {
           nik: profile.nik || null,
           alamat: profile.alamat || null,
           instagram: profile.instagram || null,
-          tglLahir: profile.tglLahir || null,
+          tglLahir: formatDate(profile.tglLahir) || null,
           bidang: bidang.nama || 'Belum Mendaftar Bidang',
-          periodeMulai: ajuan.tglMulai || '-',
-          periodeSelesai: ajuan.tglSelesai || '-',
+          periodeMulai: formatDate(ajuan.tglMulai) || '-',
+          periodeSelesai: formatDate(ajuan.tglSelesai) || '-',
           suratMagang: ajuan.statusUsulan || 'Perlu Dikirim',
           statusMagang: profile.status || 'N/A',
           sertifikat: sertifikat ? 'Sudah Diterbitkan' : 'Belum Diterbitkan',
+          logbook: flatLogbook,
 
           bidangId: bidang.id || null,
           ajuanId: ajuan.id || null,
         };
-      }); // -------------------------
+      });
       return res.status(200).json({
         status: true,
         message: 'Berhasil mengambil semua data peserta magang.',

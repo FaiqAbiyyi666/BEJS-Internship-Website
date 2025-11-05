@@ -13,8 +13,20 @@ module.exports = {
       const [totalPendaftar, pesertaAktif, pesertaLulus] =
         await prisma.$transaction([
           prisma.pesertaMagang.count(),
+
           prisma.pesertaMagang.count({ where: { status: 'APPROVED' } }),
-          prisma.pesertaMagang.count({ where: { sertifikat: { some: {} } } }),
+
+          prisma.pesertaMagang.count({
+            where: {
+              ajuan: {
+                some: {
+                  sertifikat: {
+                    isNot: null, 
+                  },
+                },
+              },
+            },
+          }),
         ]);
 
       res.status(200).json({

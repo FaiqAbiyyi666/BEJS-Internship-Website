@@ -46,15 +46,14 @@ module.exports = {
         !password ||
         !noTelepon ||
         !nik ||
-        !nimNis ||
-        !instansi ||
-        !jurusan ||
         !alamat ||
-        !pasFotoUrl
+        !pasFotoUrl ||
+        !instagram
       ) {
         return res.status(400).json({
           status: false,
-          message: 'Semua field wajib diisi, termasuk pas foto',
+          message:
+            'Semua field wajib diisi (kecuali NIM/NIS, Instansi, Jurusan). Pas foto dan instagram wajib.',
           data: null,
         });
       }
@@ -85,9 +84,9 @@ module.exports = {
           tglLahir: parsedTglLahir,
           noTelepon,
           nik,
-          nimNis,
-          instansi,
-          jurusan,
+          nimNis: nimNis || null,
+          instansi: instansi || null,
+          jurusan: jurusan || null,
           alamat,
           instagram: instagram,
           status: StatusPeserta.PENDING,
@@ -311,7 +310,6 @@ module.exports = {
           });
         }
 
-        const bcrypt = require('bcryptjs');
         const hashedPassword = await bcrypt.hash(password, 10);
 
         await prisma.user.update({

@@ -9,7 +9,7 @@ const getApprovedInternData = async (userId) => {
         include: {
           ajuan: {
             where: {
-              statusUsulan: 'DITERIMA',
+              statusUsulan: 'APPROVED',
             },
             orderBy: {
               createdAt: 'desc',
@@ -39,11 +39,11 @@ const getApprovedInternData = async (userId) => {
 module.exports = {
   getLogbookData: async (req, res) => {
     try {
-      const { ajuan, pesertaId } = await getApprovedInternData(req.user.id);
+      const { ajuan } = await getApprovedInternData(req.user.id);
 
       const logbooks = await prisma.logbook.findMany({
         where: {
-          pesertaId: pesertaId,
+          ajuanId: ajuan.id,
           tanggal: {
             gte: ajuan.tglMulai,
             lte: ajuan.tglSelesai,
@@ -129,14 +129,14 @@ module.exports = {
 
       const logbook = await prisma.logbook.upsert({
         where: {
-          pesertaId_tanggal: {
-            pesertaId: pesertaId,
+          ajuanId_tanggal: {
+            ajuanId: ajuan.id,
             tanggal: tanggalLogbook,
           },
         },
         update: dataPayload,
         create: {
-          pesertaId: pesertaId,
+          ajuanId: ajuan.id,
           tanggal: tanggalLogbook,
           deskripsi: deskripsi,
           logbookFile: logbookFileUrl || null,
@@ -183,9 +183,9 @@ module.exports = {
             .status(404)
             .json({ message: 'Data sub-koordinator tidak ditemukan' });
         }
-        where.peserta = { bidangId: subkoor.bidangId };
+        where.ajuan = { peserta: { bidangId: subkoor.bidangId } };
       } else if (req.user.role === 'admin' && bidangId) {
-        where.peserta = { bidangId: bidangId };
+        where.ajuan = { peserta: { bidangId: bidangId } };
       } else if (req.user.role !== 'admin') {
         return res.status(403).json({ message: 'Akses ditolak' });
       }
@@ -204,8 +204,8 @@ module.exports = {
 
       if (search) {
         where.OR = [
-          { peserta: { namaLengkap: { contains: search } } },
-          { peserta: { instansi: { contains: search } } },
+          { ajuan: { peserta: { namaLengkap: { contains: search } } } },
+          { ajuan: { peserta: { instansi: { contains: search } } } },
         ];
       }
 
@@ -218,14 +218,18 @@ module.exports = {
             deskripsi: true,
             logbookFile: true,
             updatedAt: true,
-            peserta: {
+            ajuan: {
               select: {
-                namaLengkap: true,
-                instansi: true,
-                pasFoto: true,
-                bidang: {
+                peserta: {
                   select: {
-                    nama: true,
+                    namaLengkap: true,
+                    instansi: true,
+                    pasFoto: true,
+                    bidang: {
+                      select: {
+                        nama: true,
+                      },
+                    },
                   },
                 },
               },
@@ -240,12 +244,12 @@ module.exports = {
 
       const formattedData = logbooks.map((log) => ({
         id: log.id,
-        peserta: log.peserta.namaLengkap,
-        bidang: log.peserta.bidang
-          ? log.peserta.bidang.nama
+        peserta: log.ajuan.peserta.namaLengkap,
+        bidang: log.ajuan.peserta.bidang
+          ? log.ajuan.peserta.bidang.nama
           : 'Belum Ditentukan',
-        instansi: log.peserta.instansi,
-        pasFoto: log.peserta.pasFoto,
+        instansi: log.ajuan.peserta.instansi,
+        pasFoto: log.ajuan.peserta.pasFoto,
         tanggal: log.tanggal,
         kegiatan: log.deskripsi,
         tanggalSubmit: log.updatedAt,
@@ -280,15 +284,19 @@ module.exports = {
           deskripsi: true,
           logbookFile: true,
           updatedAt: true,
-          peserta: {
+          ajuan: {
             select: {
-              namaLengkap: true,
-              instansi: true,
-              pasFoto: true,
-              bidangId: true,
-              bidang: {
+              peserta: {
                 select: {
-                  nama: true,
+                  namaLengkap: true,
+                  instansi: true,
+                  pasFoto: true,
+                  bidangId: true,
+                  bidang: {
+                    select: {
+                      nama: true,
+                    },
+                  },
                 },
               },
             },
@@ -304,7 +312,7 @@ module.exports = {
         const subkoor = await prisma.subKoordinatorBidang.findUnique({
           where: { userId: req.user.id },
         });
-        if (logbook.peserta.bidangId !== subkoor.bidangId) {
+        if (logbook.ajuan.peserta.bidangId !== subkoor.bidangId) {
           return res
             .status(403)
             .json({ message: 'Anda tidak memiliki akses ke logbook ini' });
@@ -315,12 +323,12 @@ module.exports = {
 
       const formattedData = {
         id: logbook.id,
-        peserta: logbook.peserta.namaLengkap,
-        instansi: logbook.peserta.instansi,
-        bidang: logbook.peserta.bidang
-          ? logbook.peserta.bidang.nama
+        peserta: logbook.ajuan.peserta.namaLengkap,
+        instansi: logbook.ajuan.peserta.instansi,
+        bidang: logbook.ajuan.peserta.bidang
+          ? logbook.ajuan.peserta.bidang.nama
           : 'Belum Ditentukan',
-        pasFoto: logbook.peserta.pasFoto,
+        pasFoto: logbook.ajuan.peserta.pasFoto,
         tanggal: logbook.tanggal,
         kegiatan: logbook.deskripsi,
         tanggalSubmit: logbook.updatedAt,

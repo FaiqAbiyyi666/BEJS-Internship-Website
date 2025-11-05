@@ -2,16 +2,15 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
 const sendMail = require('../utils/sendEmail');
+const { formatDate } = require('../utils/formatedDate');
 const ejs = require('ejs');
 const path = require('path');
 
 module.exports = {
   createAdmin: async (req, res, next) => {
     try {
-      // 1. Ambil semua data dari body, termasuk nama dan bidangId
       const { email, password, nama, bidangId } = req.body;
 
-      // 2. Validasi email dan password (tetap wajib)
       if (!email || !password) {
         return res.status(400).json({
           status: false,
@@ -20,7 +19,6 @@ module.exports = {
         });
       }
 
-      // 3. Cek email duplikat
       const exist = await prisma.user.findUnique({ where: { email } });
       if (exist) {
         return res.status(409).json({
@@ -30,10 +28,8 @@ module.exports = {
         });
       }
 
-      // 4. Hash password
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // 5. Buat User (role: 'admin')
       const user = await prisma.user.create({
         data: {
           email,
@@ -42,28 +38,21 @@ module.exports = {
         },
       });
 
-      // 6. Buat Admin (INI BAGIAN YANG DISESUAIKAN)
-      // Sekarang kita teruskan 'nama' dan 'bidangId'
-      // - Jika 'nama' tidak diisi (undefined), Prisma akan pakai default "Administrator"
-      // - Jika 'bidangId' tidak diisi (undefined), Prisma akan set ke null (karena opsional)
       const admin = await prisma.admin.create({
         data: {
           userId: user.id,
-          nama: nama, // Menggunakan 'nama' dari req.body
-          bidangId: bidangId, // Menggunakan 'bidangId' dari req.body
+          nama: nama,
+          bidangId: bidangId,
         },
       });
 
-      // 7. Respon sukses
       res.status(201).json({
         status: true,
         message: 'Akun admin berhasil dibuat',
         data: { user, admin },
       });
     } catch (error) {
-      // Error handling jika bidangId yang dikirim tidak valid/tidak ada
       if (error.code === 'P2003') {
-        // Foreign key constraint failed
         return res.status(400).json({
           status: false,
           message: 'bidangId tidak valid atau tidak ditemukan',
@@ -205,10 +194,22 @@ module.exports = {
         include: { user: true },
       });
 
+      const formattedData = pendingPeserta.map((peserta) => ({
+        ...peserta,
+        tglLahir: formatDate(peserta.tglLahir),
+        createdAt: formatDate(peserta.createdAt),
+        updatedAt: formatDate(peserta.updatedAt),
+        user: {
+          ...peserta.user,
+          createdAt: formatDate(peserta.user.createdAt),
+          updatedAt: formatDate(peserta.user.updatedAt),
+        },
+      }));
+
       res.json({
         success: true,
         message: 'Daftar peserta magang menunggu persetujuan',
-        data: pendingPeserta,
+        data: formattedData,
       });
     } catch (error) {
       console.error('Error getPendingPesertaMagang:', error);
@@ -228,10 +229,22 @@ module.exports = {
         include: { user: true },
       });
 
+      const formattedData = historyPeserta.map((peserta) => ({
+        ...peserta,
+        tglLahir: formatDate(peserta.tglLahir),
+        createdAt: formatDate(peserta.createdAt),
+        updatedAt: formatDate(peserta.updatedAt),
+        user: {
+          ...peserta.user,
+          createdAt: formatDate(peserta.user.createdAt),
+          updatedAt: formatDate(peserta.user.updatedAt),
+        },
+      }));
+
       res.json({
         success: true,
         message: 'History persetujuan peserta magang',
-        data: historyPeserta,
+        data: formattedData,
       });
     } catch (error) {
       console.error('Error getHistoryPesertaMagang:', error);
@@ -257,157 +270,12 @@ module.exports = {
         });
       }
 
-      await prisma.pesertaMagang.deleteMany({ where: { userId: id } });
-
-      await prisma.subKoordinatorBidang.deleteMany({ where: { userId: id } });
-
-      await prisma.admin.deleteMany({ where: { userId: id } });
-
-      await prisma.notifikasi.deleteMany({ where: { userId: id } });
-
       await prisma.user.delete({ where: { id } });
 
       return res.status(200).json({
         status: true,
         message: 'Akun berhasil dihapus',
         data: null,
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  getAllUsers: async (req, res, next) => {
-    try {
-      const users = await prisma.user.findMany({
-        include: {
-          pesertaMagang: true,
-          subKoordinatorBidang: true,
-          admin: true,
-        },
-      });
-
-      return res.status(200).json({
-        status: true,
-        message: 'Data user berhasil diambil',
-        data: users,
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  getUserById: async (req, res, next) => {
-    try {
-      const { id } = req.params;
-
-      const user = await prisma.user.findUnique({
-        where: { id },
-        include: {
-          pesertaMagang: true,
-          subKoordinatorBidang: true,
-          admin: true,
-        },
-      });
-
-      if (!user) {
-        return res.status(404).json({
-          status: false,
-          message: `User dengan ID ${id} tidak ditemukan`,
-          data: null,
-        });
-      }
-
-      return res.status(200).json({
-        status: true,
-        message: 'Data user berhasil diambil',
-        data: user,
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  getUserByToken: async (req, res, next) => {
-    try {
-      const { id } = req.user;
-
-      const user = await prisma.user.findUnique({
-        where: { id },
-        include: {
-          pesertaMagang: true,
-          subKoordinatorBidang: true,
-          admin: true,
-        },
-      });
-
-      if (!user) {
-        return res.status(404).json({
-          status: false,
-          message: 'User tidak ditemukan',
-          data: null,
-        });
-      }
-
-      return res.status(200).json({
-        status: true,
-        message: 'Profil user berhasil diambil',
-        data: user,
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  getAllDataMagang: async (req, res, next) => {
-    try {
-      const pesertaMagang = await prisma.pesertaMagang.findMany({
-        include: {
-          user: {
-            select: {
-              email: true,
-              role: true,
-            },
-          },
-          bidang: {
-            select: {
-              nama: true,
-              kuota: true,
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-      return res.status(200).json({
-        status: true,
-        message: 'Daftar semua peserta magang berhasil diambil',
-        data: pesertaMagang,
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  getAllKritikSaran: async (req, res, next) => {
-    try {
-      const kritikSaran = await prisma.kritikSaran.findMany({
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          nama: true,
-          email: true,
-          pesan: true,
-          createdAt: true,
-        },
-      });
-
-      return res.status(200).json({
-        status: true,
-        message: 'Daftar kritik dan saran berhasil diambil',
-        data: kritikSaran,
       });
     } catch (error) {
       next(error);
@@ -433,17 +301,7 @@ module.exports = {
       ajuanId,
     } = req.body;
 
-    if (
-      !email ||
-      !namaLengkap ||
-      !nimNis ||
-      !tglLahir ||
-      !noTelepon ||
-      !nik ||
-      !alamat ||
-      !instansi ||
-      !jurusan
-    ) {
+    if (!email || !namaLengkap || !tglLahir || !noTelepon || !nik || !alamat) {
       return res.status(400).json({
         status: false,
         message:
@@ -511,168 +369,8 @@ module.exports = {
     }
   },
 
-  getAllLogbookPeserta: async (req, res, next) => {
-    try {
-      const logbooks = await prisma.logbook.findMany({
-        orderBy: { tanggal: 'desc' },
-        include: {
-          peserta: {
-            select: {
-              id: true,
-              namaLengkap: true,
-              nimNis: true,
-              instansi: true,
-              jurusan: true,
-              bidang: {
-                select: {
-                  id: true,
-                  nama: true,
-                },
-              },
-            },
-          },
-        },
-      });
-
-      return res.status(200).json({
-        status: true,
-        message: 'Data logbook peserta magang berhasil diambil',
-        data: logbooks,
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  getAllLaporanHasilMagang: async (req, res, next) => {
-    try {
-      const laporan = await prisma.laporanHasilMagang.findMany({
-        include: {
-          peserta: {
-            select: {
-              namaLengkap: true,
-              nimNis: true,
-              instansi: true,
-              jurusan: true,
-              user: {
-                select: {
-                  email: true,
-                },
-              },
-              ajuan: {
-                select: {
-                  bidang: {
-                    select: {
-                      nama: true,
-                    },
-                  },
-                },
-                orderBy: {
-                  createdAt: 'desc',
-                },
-                take: 1,
-              },
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-      const formatted = laporan.map((item) => ({
-        id: item.id,
-        fileLaporan: item.fileLaporan,
-        createdAt: item.createdAt,
-        peserta: {
-          namaLengkap: item.peserta.namaLengkap,
-          nimNis: item.peserta.nimNis,
-          instansi: item.peserta.instansi,
-          jurusan: item.peserta.jurusan,
-          email: item.peserta.user.email,
-          bidang:
-            item.peserta.ajuan[0]?.bidang?.nama || 'Nama bidang tidak ada',
-        },
-      }));
-
-      return res.status(200).json({
-        status: true,
-        message: 'Data laporan hasil magang berhasil diambil',
-        data: formatted,
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  getAllUlasanMagang: async (req, res, next) => {
-    try {
-      const ulasanMagang = await prisma.ulasanMagang.findMany({
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              pesertaMagang: {
-                select: {
-                  namaLengkap: true,
-                  nimNis: true,
-                  instansi: true,
-                  jurusan: true,
-                  ajuan: {
-                    orderBy: {
-                      createdAt: 'desc',
-                    },
-                    take: 1,
-                    include: {
-                      bidang: {
-                        select: { nama: true },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
-
-      const formatted = ulasanMagang.map((item) => {
-        const peserta = item.user.pesertaMagang;
-        const bidang =
-          peserta?.ajuan?.[0]?.bidang?.nama ?? 'Nama bidang tidak tersedia';
-
-        return {
-          id: item.id,
-          ulasan: item.ulasan,
-          rating: item.rating,
-          createdAt: item.createdAt,
-          peserta: {
-            namaLengkap: peserta?.namaLengkap || 'Nama lengkap tidak tersedia',
-            nimNis: peserta?.nimNis || 'Nim/Nis tidak tersedia',
-            instansi: peserta?.instansi || 'Instansi tidak tersedia',
-            jurusan: peserta?.jurusan || 'Jurusan tidak tersedia',
-            email: item.user.email,
-            bidang,
-          },
-        };
-      });
-
-      return res.status(200).json({
-        status: true,
-        message: 'Data ulasan magang berhasil diambil',
-        data: formatted,
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
   getAdminProfile: async (req, res) => {
-    const userId = req.user.id; // Asumsi dari middleware auth
+    const userId = req.user.id;
 
     try {
       const admin = await prisma.admin.findUnique({
@@ -681,13 +379,11 @@ module.exports = {
         },
         include: {
           user: {
-            // Untuk ambil email
             select: {
               email: true,
             },
           },
           bidang: {
-            // Untuk ambil nama bidang
             select: {
               id: true,
               nama: true,
@@ -702,12 +398,10 @@ module.exports = {
           .json({ message: 'Profil admin tidak ditemukan' });
       }
 
-      // Data yang dikirim ke frontend
       const profileData = {
         nama: admin.nama,
         email: admin.user.email,
-        tanggalBergabung: admin.createdAt,
-        // Kirim data bidang (ID dan Nama)
+        tanggalBergabung: formatdDate(admin.createdAt),
         bidang: admin.bidang
           ? { id: admin.bidang.id, nama: admin.bidang.nama }
           : null,
