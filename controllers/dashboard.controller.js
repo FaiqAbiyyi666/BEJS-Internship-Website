@@ -1,27 +1,12 @@
 const { PrismaClient, Prisma } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-function getBusinessDays(startDate, endDate) {
-  let count = 0;
-  const curDate = new Date(startDate.getTime());
-  const lastDate = new Date(endDate.getTime());
-
-  while (curDate <= lastDate) {
-    const dayOfWeek = curDate.getDay();
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      count++;
-    }
-    curDate.setDate(curDate.getDate() + 1);
-  }
-  return count;
-}
-
 function mapStatusUsulan(status) {
-  if (!status) return null; // 'Belum Mengajukan Usulan' akan ditangani di frontend
+  if (!status) return null;
   switch (status) {
     case 'PENDING':
       return 'Menunggu Persetujuan';
-    case 'APPROVED': // <= DIUBAH DARI DITERIMA
+    case 'APPROVED':
       return 'Diterima';
     case 'REJECTED':
       return 'Ditolak';
@@ -30,9 +15,6 @@ function mapStatusUsulan(status) {
   }
 }
 
-/**
- * Menerjemahkan status laporan akhir dari database.
- */
 function mapStatusLaporan(status) {
   if (!status) return 'Belum disubmit';
   switch (status) {
@@ -45,6 +27,16 @@ function mapStatusLaporan(status) {
     default:
       return status;
   }
+}
+
+function calculateTotalDays(startDate, endDate) {
+  const start = new Date(startDate.getTime());
+  const end = new Date(endDate.getTime());
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  const diffTime = Math.abs(end - start);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays + 1;
 }
 
 module.exports = {
@@ -229,6 +221,7 @@ module.exports = {
               logbook: { select: { id: true, tanggal: true } },
               laporan: true,
               sertifikat: { select: { id: true } },
+              ulasan: { select: { id: true } },
             },
           },
         },
@@ -241,33 +234,27 @@ module.exports = {
         });
       }
 
-      const ulasan = await prisma.ulasanMagang.findFirst({
-        where: { userId: userId },
-      });
-
       const latestAjuan = peserta.ajuan[0] || null;
 
       const approvedAjuan =
         peserta.ajuan.find((a) => a.statusUsulan === 'APPROVED') || null;
 
-      // Logika sisa (laporanProgress, responseData) sudah benar
       let laporanProgress = 0;
       if (approvedAjuan) {
         const tglMulai = new Date(approvedAjuan.tglMulai);
         const tglSelesai = new Date(approvedAjuan.tglSelesai);
-        const totalHariKerja = getBusinessDays(tglMulai, tglSelesai);
+        const totalHari = calculateTotalDays(tglMulai, tglSelesai);
         const logbookSubmitted = approvedAjuan.logbook.length;
 
-        if (totalHariKerja > 0) {
-          laporanProgress = Math.round(
-            (logbookSubmitted / totalHariKerja) * 100
-          );
+        if (totalHari > 0) {
+          laporanProgress = Math.round((logbookSubmitted / totalHari) * 100);
           if (laporanProgress > 100) laporanProgress = 100;
         }
       }
 
       const laporanAkhirData = approvedAjuan?.laporan || null;
       const sertifikatData = approvedAjuan?.sertifikat || null;
+      const ulasanData = approvedAjuan?.ulasan || null;
 
       const responseData = {
         namaLengkap: peserta.namaLengkap,
@@ -288,7 +275,7 @@ module.exports = {
         tanggalPengajuan: latestAjuan?.createdAt || null,
         laporanProgress: laporanProgress,
         laporanAkhir: mapStatusLaporan(laporanAkhirData?.status),
-        ulasan: ulasan ? 'Sudah dikirim' : 'Belum dikirim',
+        ulasan: ulasanData ? 'Sudah dikirim' : 'Belum dikirim',
         sertifikat: sertifikatData ? 'Sudah terbit' : 'Belum terbit',
       };
 

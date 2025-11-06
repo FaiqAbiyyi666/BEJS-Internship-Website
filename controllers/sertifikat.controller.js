@@ -266,20 +266,75 @@ module.exports = {
         });
       }
 
-      const sertifikatList = await prisma.sertifikat.findMany({
-        where: {
-          pesertaId: peserta.id,
+      const ajuans = await prisma.ajuanMagang.findMany({
+        where: { pesertaId: peserta.id },
+        include: {
+          sertifikat: true,
+          bidang: { select: { nama: true } },
         },
         orderBy: {
-          createdAt: 'desc',
+          tglSelesai: 'desc',
         },
       });
 
-      res.status(200).json({
-        status: true,
-        message: 'Sertifikat berhasil diambil.',
-        data: sertifikatList,
-      });
+      if (!ajuans || ajuans.length === 0) {
+        return res.status(200).json({
+          status: true,
+          message: 'Anda belum pernah mengajukan magang.',
+          data: [],
+        });
+      }
+
+      const approvedAjuans = ajuans.filter(
+        (a) => a.statusUsulan === 'APPROVED'
+      );
+      if (approvedAjuans.length === 0) {
+        return res.status(200).json({
+          status: true,
+          message:
+            'Ajuan magang Anda masih PENDING atau telah DITOLAK. Sertifikat hanya terbit untuk ajuan yang DITERIMA.',
+          data: [],
+        });
+      }
+
+      const certifiedAjuans = approvedAjuans.filter((a) => a.sertifikat);
+
+      const formattedList = certifiedAjuans.map((item) => ({
+        id: item.sertifikat.id,
+        noSertifikat: item.sertifikat.noSertifikat,
+        nilai: item.sertifikat.nilai,
+        fileUrl: item.sertifikat.fileUrl,
+        createdAt: item.sertifikat.createdAt,
+        bidang: item.bidang.nama,
+        tglMulai: item.tglMulai,
+        tglSelesai: item.tglSelesai,
+      }));
+
+      if (formattedList.length > 0) {
+        return res.status(200).json({
+          status: true,
+          message: 'Sertifikat berhasil diambil.',
+          data: formattedList,
+        });
+      }
+
+      const mostRecentApprovedAjuan = approvedAjuans[0];
+
+      if (mostRecentApprovedAjuan.tglSelesai >= new Date()) {
+        return res.status(200).json({
+          status: true,
+          message:
+            'Sertifikat belum terbit. Selesaikan program magang Anda terlebih dahulu.',
+          data: [],
+        });
+      } else {
+        return res.status(200).json({
+          status: true,
+          message:
+            'Program magang Anda telah selesai. Sertifikat sedang diproses oleh Admin.',
+          data: [],
+        });
+      }
     } catch (error) {
       console.error('Gagal mengambil data sertifikat:', error);
       return res.status(500).json({

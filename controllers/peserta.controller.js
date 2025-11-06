@@ -175,6 +175,9 @@ module.exports = {
 
   getAllPesertaMagang: async (req, res, next) => {
     try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
       const users = await prisma.user.findMany({
         where: {
           role: Role.peserta_magang,
@@ -189,9 +192,8 @@ module.exports = {
                   bidang: {
                     select: { nama: true, id: true },
                   },
-                  sertifikat: {
-                    take: 1,
-                  },
+                  sertifikat: true,
+                  suratPenerimaan: true,
                   logbook: {
                     orderBy: { tanggal: 'asc' },
                   },
@@ -216,10 +218,56 @@ module.exports = {
       const allPeserta = users.map((user) => {
         const profile = user.pesertaMagang || {};
         const ajuan =
-          profile.ajuan && profile.ajuan.length > 0 ? profile.ajuan[0] : {};
-        const bidang = ajuan.bidang || {};
-        const sertifikat = ajuan.sertifikat ? true : false;
-        const flatLogbook = (ajuan.logbook || []).map((entry) => ({
+          profile.ajuan && profile.ajuan.length > 0 ? profile.ajuan[0] : null;
+
+        let statusSuratMagang = 'Belum Mengajukan Magang';
+        let statusMagang = 'Belum Mengajukan Magang';
+        let statusSertifikat = 'Belum Mengajukan Magang';
+        let tglMulai = null;
+        let tglSelesai = null;
+
+        if (ajuan) {
+          if (ajuan.suratPenerimaan) {
+            statusSuratMagang = 'Sudah Dikirim';
+          } else if (ajuan.statusUsulan === 'APPROVED') {
+            statusSuratMagang = 'Surat Perlu Dikirim';
+          } else if (ajuan.statusUsulan === 'PENDING') {
+            statusSuratMagang = 'Menunggu Persetujuan Ajuan Magang';
+          } else if (ajuan.statusUsulan === 'REJECTED') {
+            statusSuratMagang = 'Ajuan Ditolak';
+          }
+
+          tglMulai = new Date(ajuan.tglMulai);
+          tglSelesai = new Date(ajuan.tglSelesai);
+          tglMulai.setHours(0, 0, 0, 0);
+          tglSelesai.setHours(0, 0, 0, 0);
+
+          if (ajuan.statusUsulan === 'APPROVED') {
+            if (today > tglSelesai) {
+              statusMagang = 'Selesai Magang';
+            } else if (today >= tglMulai && today <= tglSelesai) {
+              statusMagang = 'Aktif Magang';
+            } else if (today < tglMulai) {
+              statusMagang = 'Disetujui (Belum Mulai)';
+            }
+          } else {
+            statusMagang =
+              ajuan.statusUsulan === 'PENDING'
+                ? 'Menunggu Persetujuan'
+                : 'Ajuan Ditolak';
+          }
+
+          if (ajuan.sertifikat) {
+            statusSertifikat = 'Sudah Dikirim';
+          } else if (today > tglSelesai) {
+            statusSertifikat = 'Perlu Dikirim';
+          } else {
+            statusSertifikat = 'Belum Diterbitkan';
+          }
+        }
+
+        const bidang = ajuan?.bidang || {};
+        const flatLogbook = (ajuan?.logbook || []).map((entry) => ({
           id: entry.id,
           tanggal: formatDate(entry.tanggal),
           isi: entry.deskripsi || '',
@@ -232,23 +280,23 @@ module.exports = {
           nama: profile.namaLengkap || 'Peserta Baru (Belum Isi Profil)',
           nim: profile.nimNis || null,
           email: user.email,
-          instansi: profile.instansi || null,
-          jurusan: profile.jurusan || null,
+          instansi: profile.instansi || ajuan?.instansi || null,
+          jurusan: profile.jurusan || ajuan?.jurusan || null,
           noTelepon: profile.noTelepon || null,
           nik: profile.nik || null,
           alamat: profile.alamat || null,
           instagram: profile.instagram || null,
           tglLahir: formatDate(profile.tglLahir) || null,
           bidang: bidang.nama || 'Belum Mendaftar Bidang',
-          periodeMulai: formatDate(ajuan.tglMulai) || '-',
-          periodeSelesai: formatDate(ajuan.tglSelesai) || '-',
-          suratMagang: ajuan.statusUsulan || 'Perlu Dikirim',
-          statusMagang: profile.status || 'N/A',
-          sertifikat: sertifikat ? 'Sudah Diterbitkan' : 'Belum Diterbitkan',
+          periodeMulai: formatDate(ajuan?.tglMulai) || '-',
+          periodeSelesai: formatDate(ajuan?.tglSelesai) || '-',
+          suratMagang: statusSuratMagang,
+          statusMagang: statusMagang,
+          sertifikat: statusSertifikat,
           logbook: flatLogbook,
 
           bidangId: bidang.id || null,
-          ajuanId: ajuan.id || null,
+          ajuanId: ajuan?.id || null,
         };
       });
       return res.status(200).json({

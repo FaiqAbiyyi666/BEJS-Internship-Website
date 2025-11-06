@@ -33,7 +33,7 @@ const cekKuota = async (bidangId) => {
     const jumlahDiterima = await prisma.ajuanMagang.count({
       where: {
         bidangId: bidangId,
-        statusUsulan: 'DITERIMA',
+        statusUsulan: 'APPROVED',
       },
     });
     return jumlahDiterima < bidang.kuota;
@@ -99,7 +99,7 @@ module.exports = {
               OR: [
                 { statusUsulan: 'PENDING' },
                 {
-                  statusUsulan: 'DITERIMA',
+                  statusUsulan: 'APPROVED',
                   tglSelesai: { gte: today },
                 },
               ],
@@ -121,7 +121,7 @@ module.exports = {
         const existingAjuan = peserta.ajuan[0];
         let message =
           'Anda sudah memiliki ajuan magang yang sedang diproses (PENDING).';
-        if (existingAjuan.statusUsulan === 'DITERIMA') {
+        if (existingAjuan.statusUsulan === 'APPROVED') {
           message =
             'Anda sudah diterima magang dan periode magang Anda belum selesai.';
         }
@@ -178,7 +178,7 @@ module.exports = {
         await tx.berkasMagang.create({
           data: {
             ...dataBerkas,
-            ajuan: { connect: { id: peserta.id } },
+            ajuan: { connect: { id: ajuan.id } },
           },
         });
 

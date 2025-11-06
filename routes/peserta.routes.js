@@ -64,6 +64,12 @@ router.get(
 );
 
 router.post('/ulasan-magang', restrict, isPesertaMagang, ulasan.createUlasan);
+router.get(
+  '/ulasan-magang/status',
+  restrict,
+  isPesertaMagang,
+  ulasan.getUlasanEligibility
+);
 
 router.get('/sertifikat', restrict, isPesertaMagang, sertifikat.getSertifikat);
 
