@@ -277,9 +277,10 @@ const uploadLogbookFile = (req, res, next) => {
       next();
     } catch (error) {
       console.error(error);
-      return res
-        .status(500)
-        .json({ message: 'Gagal mengunggah file logbook ke ImageKit.' });
+      return res.status(500).json({
+        message:
+          'Gagal mengunggah file logbook ke ImageKit. Ukuran file harus dibawah 5MB',
+      });
     }
   });
 };

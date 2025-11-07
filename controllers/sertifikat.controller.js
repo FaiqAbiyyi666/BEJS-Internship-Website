@@ -181,31 +181,52 @@ module.exports = {
       const skip = (parseInt(page, 10) - 1) * ITEMS_PER_PAGE;
 
       let where = {};
-
-      if (search) {
-        where.OR = [
-          { peserta: { namaLengkap: { contains: search } } },
-          { noSertifikat: { contains: search } },
-        ];
-      }
-
-      if (bidang) {
-        where.bidang = { equals: bidang };
-      }
+      let conditions = [];
 
       if (tanggal) {
         const tgl = new Date(tanggal);
         const tglBesok = new Date(tgl);
         tglBesok.setDate(tgl.getDate() + 1);
+        conditions.push({
+          createdAt: {
+            gte: tgl,
+            lt: tglBesok,
+          },
+        });
+      }
 
-        where.createdAt = {
-          gte: tgl,
-          lt: tglBesok,
-        };
+      // 2. Filter Bidang (Asumsi 'bidang' adalah bidangId)
+      if (bidang) {
+        conditions.push({
+          ajuan: {
+            bidangId: bidang,
+          },
+        });
+      }
+
+      // 3. Filter Search
+      if (search) {
+        conditions.push({
+          OR: [
+            { noSertifikat: { contains: search } },
+            {
+              ajuan: {
+                peserta: {
+                  namaLengkap: { contains: search },
+                },
+              },
+            },
+          ],
+        });
+      }
+
+      // Gabungkan semua kondisi dengan 'AND'
+      if (conditions.length > 0) {
+        where.AND = conditions;
       }
 
       const totalItems = await prisma.sertifikat.count({
-        where,
+        where, // Gunakan 'where' yang sudah diperbaiki
       });
       const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
@@ -217,9 +238,18 @@ module.exports = {
           createdAt: 'desc',
         },
         include: {
-          peserta: {
-            select: {
-              namaLengkap: true,
+          ajuan: {
+            include: {
+              peserta: {
+                select: {
+                  namaLengkap: true,
+                },
+              },
+              bidang: {
+                select: {
+                  nama: true,
+                },
+              },
             },
           },
         },

@@ -707,6 +707,15 @@ module.exports = {
         '../views/sendInternLetter.ejs'
       );
 
+      const formatDate = (date) => {
+        if (!date) return 'N/A';
+        return new Date(date).toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
+      };
+
       const templateData = {
         namaLengkap: namaPeserta,
         namaBidang: ajuan.bidang.nama,

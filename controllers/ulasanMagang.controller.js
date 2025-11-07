@@ -161,17 +161,20 @@ module.exports = {
         where.createdAt = { gte: startDate, lt: endDate };
       }
 
-      // PERUBAHAN: Filter relasional
-      where.ajuan = {};
+      let ajuanWhere = {};
       if (searchNama) {
-        where.ajuan.peserta = {
+        ajuanWhere.peserta = {
           namaLengkap: { contains: searchNama, mode: 'insensitive' },
         };
       }
       if (filterBidang) {
-        where.ajuan.bidang = {
+        ajuanWhere.bidang = {
           nama: { equals: filterBidang },
         };
+      }
+
+      if (Object.keys(ajuanWhere).length > 0) {
+        where.ajuan = ajuanWhere;
       }
 
       const ulasanList = await prisma.ulasanMagang.findMany({
@@ -194,11 +197,9 @@ module.exports = {
 
       const formattedData = ulasanList.map((item) => ({
         id: item.id,
-        nama: item.user?.pesertaMagang?.namaLengkap || 'User Dihapus',
-        bidang: item.user?.pesertaMagang?.bidang?.nama || 'N/A',
-        foto:
-          item.user?.pesertaMagang?.pasFoto ||
-          'https://via.placeholder.com/150',
+        nama: item.ajuan?.peserta?.namaLengkap || 'Peserta Tidak Ditemukan',
+        bidang: item.ajuan?.bidang?.nama || 'N/A',
+        foto: item.ajuan?.peserta?.pasFoto || 'https://via.placeholder.com/150',
         tanggal: item.createdAt,
         ulasan: item.ulasan,
         rating: item.rating,
@@ -261,7 +262,6 @@ module.exports = {
     try {
       const ulasanList = await prisma.ulasanMagang.findMany({
         orderBy: { createdAt: 'desc' },
-        // PERUBAHAN: 'include' data melalui 'ajuan'
         include: {
           ajuan: {
             select: {
@@ -314,27 +314,29 @@ module.exports = {
           .json({ status: false, message: 'Hanya peserta.' });
       }
 
-      // Ambil SEMUA ajuan magang peserta
       const allAjuan = await prisma.ajuanMagang.findMany({
         where: {
           pesertaId: peserta.id,
-          statusUsulan: 'APPROVED', // Hanya cek yang disetujui
+          statusUsulan: 'APPROVED',
         },
         orderBy: { tglSelesai: 'desc' },
         select: {
           id: true,
-          temaMagang: true,
           tglMulai: true,
           tglSelesai: true,
-          ulasan: { select: { id: true } }, // Cek apakah ulasan sudah ada
-          laporan: { select: { status: true } }, // Cek status laporan
+          ulasan: { select: { id: true } },
+          laporan: { select: { status: true } },
+          bidang: {
+            select: {
+              nama: true,
+            },
+          },
         },
       });
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      // Kita akan memproses setiap ajuan dan memberinya status
       const eligibilityStatus = [];
 
       for (const ajuan of allAjuan) {
@@ -366,7 +368,6 @@ module.exports = {
           if (logbookCount < expectedLogbooks) {
             message = `Logbook harian belum lengkap (${logbookCount}/${expectedLogbooks}).`;
           } else {
-            // Semua syarat terpenuhi!
             status = 'ELIGIBLE';
             message = 'Anda dapat memberikan ulasan untuk magang ini.';
             eligible = true;
@@ -375,7 +376,7 @@ module.exports = {
 
         eligibilityStatus.push({
           ajuanId: ajuan.id,
-          temaMagang: ajuan.temaMagang,
+          namaBidang: ajuan.bidang?.nama,
           status: status,
           message: message,
           eligible: eligible,
