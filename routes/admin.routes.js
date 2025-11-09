@@ -167,10 +167,10 @@ router.get(
 );
 
 router.get(
-  '/sertifikat-list',
+  '/ajuan-for-sertifikat',
   restrict,
   isAdmin,
-  sertifikat.getPesertaForSertifikat
+  sertifikat.getAjuanForSertifikat
 );
 
 router.get('/logbook/all', restrict, isAdmin, logbook.getAllLogbooks);

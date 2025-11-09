@@ -30,6 +30,7 @@ module.exports = {
             select: { logbook: true },
           },
           sertifikat: true,
+          ulasan: true,
         },
       });
 
@@ -69,23 +70,19 @@ module.exports = {
         });
       }
 
-      const ulasan = await prisma.ulasanMagang.findFirst({
-        where: { userId: ajuan.peserta.userId },
-      });
-      if (!ulasan) {
+      if (!ajuan.ulasan) {
         return res.status(400).json({
           status: false,
           message: 'Gagal. Peserta belum mengisi ulasan magang.',
           data: null,
         });
       }
+      const countTotalDays = (startDate, endDate) => {
+        const diffTime = Math.abs(endDate - startDate);
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      };
 
-      const tglMulai = ajuan.tglMulai;
-      const tglSelesai = ajuan.tglSelesai;
-
-      const diffTime = Math.abs(tglSelesai - tglMulai);
-      const expectedLogbooks = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
+      const expectedLogbooks = countTotalDays(ajuan.tglMulai, ajuan.tglSelesai);
       const actualLogbooks = ajuan._count.logbook;
 
       if (actualLogbooks < expectedLogbooks) {
@@ -195,7 +192,6 @@ module.exports = {
         });
       }
 
-      // 2. Filter Bidang (Asumsi 'bidang' adalah bidangId)
       if (bidang) {
         conditions.push({
           ajuan: {
@@ -204,7 +200,6 @@ module.exports = {
         });
       }
 
-      // 3. Filter Search
       if (search) {
         conditions.push({
           OR: [
@@ -220,13 +215,12 @@ module.exports = {
         });
       }
 
-      // Gabungkan semua kondisi dengan 'AND'
       if (conditions.length > 0) {
         where.AND = conditions;
       }
 
       const totalItems = await prisma.sertifikat.count({
-        where, // Gunakan 'where' yang sudah diperbaiki
+        where,
       });
       const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
 
@@ -375,28 +369,44 @@ module.exports = {
     }
   },
 
-  getPesertaForSertifikat: async (req, res, next) => {
+  getAjuanForSertifikat: async (req, res, next) => {
     try {
-      const peserta = await prisma.pesertaMagang.findMany({
+      const ajuans = await prisma.ajuanMagang.findMany({
         where: {
-          status: 'APPROVED',
+          statusUsulan: 'APPROVED',
+          tglSelesai: {
+            lt: new Date(),
+          },
+          sertifikat: null,
+
+          laporan: { isNot: null },
+          ulasan: { isNot: null },
         },
         select: {
           id: true,
-          namaLengkap: true,
+          peserta: { select: { namaLengkap: true } },
+          bidang: { select: { nama: true } },
+          tglSelesai: true,
         },
         orderBy: {
-          namaLengkap: 'asc',
+          tglSelesai: 'desc',
         },
       });
 
+      const formattedAjuans = ajuans.map((a) => ({
+        id: a.id,
+        namaDisplay: `${a.peserta.namaLengkap} (${
+          a.bidang.nama
+        } | Selesai ${a.tglSelesai.toLocaleDateString('id-ID')})`,
+      }));
+
       res.status(200).json({
         status: true,
-        message: 'Data peserta berhasil diambil.',
-        data: peserta,
+        message: 'Data ajuan yang siap menerima sertifikat berhasil diambil.',
+        data: formattedAjuans,
       });
     } catch (error) {
-      console.error('Gagal mengambil daftar peserta:', error);
+      console.error('Gagal mengambil daftar ajuan:', error);
       return res.status(500).json({
         status: false,
         message: 'Terjadi kesalahan pada server.',

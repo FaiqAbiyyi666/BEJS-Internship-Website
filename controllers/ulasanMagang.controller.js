@@ -324,7 +324,13 @@ module.exports = {
           id: true,
           tglMulai: true,
           tglSelesai: true,
-          ulasan: { select: { id: true } },
+          ulasan: {
+            select: {
+              id: true,
+              ulasan: true,
+              rating: true,
+            },
+          },
           laporan: { select: { status: true } },
           bidang: {
             select: {
@@ -376,10 +382,11 @@ module.exports = {
 
         eligibilityStatus.push({
           ajuanId: ajuan.id,
-          namaBidang: ajuan.bidang?.nama,
+          namaBidang: ajuan.bidang?.nama || 'Bidang Tidak Ditemukan',
           status: status,
           message: message,
           eligible: eligible,
+          existingReview: ajuan.ulasan,
         });
       }
 

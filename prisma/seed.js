@@ -13,7 +13,6 @@ const DUMMY_FILES = {
     'https://ik.imagekit.io/magangdiskominfo/data_dummy/logbook.pdf?updatedAt=1762706022775',
   SERTIFIKAT:
     'https://ik.imagekit.io/magangdiskominfo/data_dummy/sertifikat.pdf?updatedAt=1762705951749',
-  // Menggantikan 'surat_magang'
   SURAT_PENERIMAAN:
     'https://ik.imagekit.io/magangdiskominfo/data_dummy/surat_magang.pdf?updatedAt=1762705844512',
   SURAT_PENGANTAR:
@@ -36,27 +35,32 @@ const DUMMY_FILES = {
 // HELPER FUNCTIONS
 // ====================================================================
 
-// Helper untuk hash password
 async function hashPassword(password) {
   return bcrypt.hash(password, 10);
 }
 
-// Helper untuk tanggal
 function getDates() {
   const today = new Date();
-
   const oneDay = 24 * 60 * 60 * 1000;
-
   // Periode 3 minggu (21 hari)
   const threeWeeksAgo = new Date(today.getTime() - 21 * oneDay);
   const oneWeekAgo = new Date(today.getTime() - 7 * oneDay);
   const yesterday = new Date(today.getTime() - 1 * oneDay);
   const nextTwoWeeks = new Date(today.getTime() + 14 * oneDay);
 
-  return { today, yesterday, oneWeekAgo, threeWeeksAgo, nextTwoWeeks };
+  // Tanggal spesifik untuk logbook tidak lengkap
+  const tenDaysAgo = new Date(today.getTime() - 10 * oneDay);
+
+  return {
+    today,
+    yesterday,
+    oneWeekAgo,
+    threeWeeksAgo,
+    nextTwoWeeks,
+    tenDaysAgo,
+  };
 }
 
-// Fungsi dummy data untuk berkas (diperbarui dgn URL ImageKit)
 function createDummyBerkas() {
   return {
     suratPengantar: DUMMY_FILES.SURAT_PENGANTAR,
@@ -64,13 +68,13 @@ function createDummyBerkas() {
     cv: DUMMY_FILES.CV,
     ktp: DUMMY_FILES.KTP,
     suratBakesbangpolSda: DUMMY_FILES.BAKESBANGPOL_SDA,
-    suratBakesbangpolProv: DUMMY_FILES.BAKESBANGPOL_PROV, // Tambahkan provinsi
+    suratBakesbangpolProv: DUMMY_FILES.BAKESBANGPOL_PROV,
   };
 }
 
-// FUNGSI BARU: Untuk mengisi logbook harian (Senin - Jumat)
+// FUNGSI LOGBOOK DIPERBARUI
 async function generateLogbookEntries(ajuanId, tglMulai, tglSelesai) {
-  console.log(`Mengisi logbook untuk ajuan ${ajuanId}...`);
+  console.log(`Mengisi logbook 7 HARI/MINGGU untuk ajuan ${ajuanId}...`);
   const logEntries = [];
   let currentDate = new Date(tglMulai);
   const endDate = new Date(tglSelesai);
@@ -87,17 +91,15 @@ async function generateLogbookEntries(ajuanId, tglMulai, tglSelesai) {
   ];
 
   while (currentDate <= endDate) {
-    const dayOfWeek = currentDate.getDay();
-    // 0 = Minggu, 6 = Sabtu. Hanya jalankan untuk 1-5 (Senin-Jumat)
-    if (dayOfWeek > 0 && dayOfWeek < 6) {
-      logEntries.push({
-        ajuanId: ajuanId,
-        tanggal: new Date(currentDate),
-        deskripsi:
-          deskripsiAcak[Math.floor(Math.random() * deskripsiAcak.length)],
-        logbookFile: Math.random() > 0.7 ? DUMMY_FILES.LOGBOOK : null, // Kadang ada file
-      });
-    }
+    // PERUBAHAN: Dihapus pengecekan 'dayOfWeek', sekarang 7 hari kerja
+    logEntries.push({
+      ajuanId: ajuanId,
+      tanggal: new Date(currentDate),
+      deskripsi:
+        deskripsiAcak[Math.floor(Math.random() * deskripsiAcak.length)],
+      // PERUBAHAN: File logbook sekarang WAJIB, tidak lagi null
+      logbookFile: DUMMY_FILES.LOGBOOK,
+    });
     // Maju ke hari berikutnya
     currentDate = new Date(currentDate.getTime() + oneDay);
   }
@@ -106,7 +108,7 @@ async function generateLogbookEntries(ajuanId, tglMulai, tglSelesai) {
     await prisma.logbook.createMany({
       data: logEntries,
     });
-    console.log(`-> ${logEntries.length} logbook terisi.`);
+    console.log(`-> ${logEntries.length} logbook (7-day/week) terisi.`);
   }
 }
 
@@ -115,11 +117,17 @@ async function generateLogbookEntries(ajuanId, tglMulai, tglSelesai) {
 // ====================================================================
 async function main() {
   console.log('🌱 Memulai proses seeding...');
-  const { today, yesterday, oneWeekAgo, threeWeeksAgo, nextTwoWeeks } =
-    getDates();
+  const {
+    today,
+    yesterday,
+    oneWeekAgo,
+    threeWeeksAgo,
+    nextTwoWeeks,
+    tenDaysAgo,
+  } = getDates();
   const defaultPassword = await hashPassword('password123');
 
-  // 1. 🧹 HAPUS DATA LAMA (Urutan penting!)
+  // 1. 🧹 HAPUS DATA LAMA
   console.log('Membersihkan data lama...');
   await prisma.logbook.deleteMany();
   await prisma.laporanHasilMagang.deleteMany();
@@ -136,7 +144,7 @@ async function main() {
   await prisma.user.deleteMany();
   await prisma.kuotaBidang.deleteMany();
 
-  // 2. 🏢 BUAT DATA PRASYARAT (KUOTA BIDANG)
+  // 2. 🏢 BUAT KUOTA BIDANG
   console.log('Membuat Kuota Bidang...');
   const bidangInfra = await prisma.kuotaBidang.create({
     data: { nama: 'Infrastruktur dan Keamanan TIK', kuota: 10 },
@@ -154,19 +162,14 @@ async function main() {
     data: { nama: 'Tata Kelola Informatika', kuota: 10 },
   });
 
-  // 3. 🧑‍💼 BUAT DATA ADMIN & SUBKOORDINATOR
+  // 3. 🧑‍💼 BUAT ADMIN & SUBKOORDINATOR
   console.log('Membuat Admin & Subkoordinator...');
   await prisma.user.create({
     data: {
       email: 'admin@test.com',
       password: defaultPassword,
       role: 'admin',
-      admin: {
-        create: {
-          nama: 'Admin Utama',
-          bidangId: bidangTatakelola.id,
-        },
-      },
+      admin: { create: { nama: 'Admin Utama', bidangId: bidangTatakelola.id } },
     },
   });
   await prisma.user.create({
@@ -175,15 +178,13 @@ async function main() {
       password: defaultPassword,
       role: 'sub_koordinator_bidang',
       subKoordinatorBidang: {
-        create: {
-          nama: 'Subkoor PIKP',
-          bidangId: bidangPikp.id,
-        },
+        create: { nama: 'Subkoor PIKP', bidangId: bidangPikp.id },
       },
     },
   });
 
   // 4. 👤 BUAT DATA DUMMY PESERTA MAGANG
+  // Skenario alur kerja (workflow) Anda dimulai dari Kriteria 4
 
   // --- Kriteria 1: Registrasi, belum di-approve (PENDING) ---
   console.log('Membuat Kriteria 1 (Pending Approval)...');
@@ -236,17 +237,16 @@ async function main() {
     },
   });
 
-  // --- Kriteria 3: Ajuan diterima, belum isi logbook (Magang baru mulai) ---
-  // PERIODE DIPERPENDEK: Mulai hari ini, selesai 2 minggu lagi
-  console.log('Membuat Kriteria 3 (Ajuan Diterima, No Logbook)...');
+  // --- Kriteria 3: Ajuan diterima, magang sedang berjalan ---
+  console.log('Membuat Kriteria 3 (Magang Aktif, Belum Selesai)...');
   const user3 = await prisma.user.create({
     data: {
-      email: 'peserta.no.logbook@test.com',
+      email: 'peserta.aktif@test.com',
       password: defaultPassword,
       role: 'peserta_magang',
       pesertaMagang: {
         create: {
-          namaLengkap: 'Candra Logbook',
+          namaLengkap: 'Candra Aktif',
           tglLahir: new Date('2003-01-15T00:00:00Z'),
           noTelepon: '081233334444',
           nik: '1122334455667788',
@@ -254,7 +254,7 @@ async function main() {
           instansi: 'Politeknik Negeri',
           jurusan: 'Manajemen Informatika',
           alamat: 'Jl. Sejahtera No. 3',
-          instagram: 'candralog',
+          instagram: 'candraaktif',
           pasFoto: DUMMY_FILES.PP_COWOK,
           status: 'APPROVED',
           bidangId: bidangTatakelola.id,
@@ -263,14 +263,14 @@ async function main() {
     },
     include: { pesertaMagang: true },
   });
-  await prisma.ajuanMagang.create({
+  const ajuanCandra = await prisma.ajuanMagang.create({
     data: {
       kategoriMagang: 'Mahasiswa',
       statusPendidikan: 'Aktif',
       jenjangPendidikan: 'D3',
       instansi: 'Politeknik Negeri',
       jurusan: 'Manajemen Informatika',
-      tglMulai: today, // Magang dimulai hari ini
+      tglMulai: oneWeekAgo, // Mulai 1 minggu lalu
       tglSelesai: nextTwoWeeks, // Selesai 2 minggu lagi
       temaMagang: 'Pengembangan Sistem Internal',
       statusUsulan: 'APPROVED',
@@ -286,19 +286,19 @@ async function main() {
       },
     },
   });
-  // Tidak ada logbook dibuat untuk kriteria 3
+  // Logbook baru terisi sebagian (karena magang masih aktif)
+  await generateLogbookEntries(ajuanCandra.id, oneWeekAgo, today);
 
-  // --- Kriteria 4: Magang selesai, logbook penuh, belum kirim laporan ---
-  // PERIODE DIPERPENDEK: Mulai 3 minggu lalu, selesai kemarin
-  console.log('Membuat Kriteria 4 (Hampir Selesai, No Laporan)...');
+  // --- Kriteria 4: Siap Kirim Laporan (Logbook Penuh, Magang Selesai) ---
+  console.log('Membuat Kriteria 4 (Siap Kirim Laporan Akhir)...');
   const user4 = await prisma.user.create({
     data: {
-      email: 'peserta.no.laporan@test.com',
+      email: 'peserta.siap.laporan@test.com',
       password: defaultPassword,
       role: 'peserta_magang',
       pesertaMagang: {
         create: {
-          namaLengkap: 'Dina Laporan',
+          namaLengkap: 'Dina Siap Laporan',
           tglLahir: new Date('2000-08-30T00:00:00Z'),
           noTelepon: '081255556666',
           nik: '9988776655443322',
@@ -322,8 +322,8 @@ async function main() {
       jenjangPendidikan: 'S1',
       instansi: 'Universitas Veteran',
       jurusan: 'Sistem Informasi',
-      tglMulai: threeWeeksAgo, // Mulai 3 minggu lalu
-      tglSelesai: yesterday, // Selesai kemarin
+      tglMulai: threeWeeksAgo, // Selesai
+      tglSelesai: yesterday, // Selesai
       temaMagang: 'Analisis Keamanan Jaringan',
       statusUsulan: 'APPROVED',
       pesertaId: user4.pesertaMagang.id,
@@ -336,16 +336,194 @@ async function main() {
           fileId: 'file124',
         },
       },
+      // Laporan, Ulasan, Sertifikat KOSONG
+    },
+  });
+  // LOGBOOK DIISI PENUH (7 hari/minggu)
+  await generateLogbookEntries(ajuanDina.id, threeWeeksAgo, yesterday);
+
+  // --- Kriteria 5: Gagal Kirim Laporan (Logbook TDK Penuh, Magang Selesai) ---
+  console.log('Membuat Kriteria 5 (Gagal Laporan - Logbook Kurang)...');
+  const user5 = await prisma.user.create({
+    data: {
+      email: 'peserta.logbook.kurang@test.com',
+      password: defaultPassword,
+      role: 'peserta_magang',
+      pesertaMagang: {
+        create: {
+          namaLengkap: 'Joko Logbook Kurang',
+          tglLahir: new Date('2000-10-10T00:00:00Z'),
+          noTelepon: '081210102020',
+          nik: '1020304050607080',
+          nimNis: '101010',
+          instansi: 'Universitas Nasional',
+          jurusan: 'Administrasi Publik',
+          alamat: 'Jl. Kemerdekaan No. 10',
+          instagram: 'jokologbook',
+          pasFoto: DUMMY_FILES.PP_COWOK,
+          status: 'APPROVED',
+          bidangId: bidangSekre.id,
+        },
+      },
+    },
+    include: { pesertaMagang: true },
+  });
+  const ajuanJoko = await prisma.ajuanMagang.create({
+    data: {
+      kategoriMagang: 'Mahasiswa',
+      statusPendidikan: 'Aktif',
+      jenjangPendidikan: 'S1',
+      instansi: 'Universitas Nasional',
+      jurusan: 'Administrasi Publik',
+      tglMulai: threeWeeksAgo, // Selesai
+      tglSelesai: yesterday, // Selesai
+      temaMagang: 'Pengarsipan Digital',
+      statusUsulan: 'APPROVED',
+      pesertaId: user5.pesertaMagang.id,
+      bidangId: bidangSekre.id,
+      berkas: { create: createDummyBerkas() },
+      suratPenerimaan: {
+        create: {
+          noSurat: '130/SP/SEKRE/2025',
+          fileUrl: DUMMY_FILES.SURAT_PENERIMAAN,
+          fileId: 'file130',
+        },
+      },
+      // Laporan, Ulasan, Sertifikat KOSONG
+    },
+  });
+  // LOGBOOK SENGAJA DIISI SEBAGIAN (hanya 10 hari terakhir)
+  await generateLogbookEntries(ajuanJoko.id, tenDaysAgo, yesterday); // Periode magang 21 hari, dia hanya isi 10
+
+  // --- Kriteria 6: Siap Kirim Ulasan (Logbook Penuh, Laporan Approved) ---
+  console.log('Membuat Kriteria 6 (Siap Kirim Ulasan)...');
+  const user6 = await prisma.user.create({
+    data: {
+      email: 'peserta.siap.ulasan@test.com',
+      password: defaultPassword,
+      role: 'peserta_magang',
+      pesertaMagang: {
+        create: {
+          namaLengkap: 'Lina Siap Ulasan',
+          tglLahir: new Date('2002-12-12T00:00:00Z'),
+          noTelepon: '081212124444',
+          nik: '1212121212121212',
+          nimNis: '123123',
+          instansi: 'Universitas Brawijaya',
+          jurusan: 'Ilmu Komputer',
+          alamat: 'Jl. Soekarno Hatta No. 12',
+          instagram: 'linalinu',
+          pasFoto: DUMMY_FILES.PP_CEWEK,
+          status: 'APPROVED',
+          bidangId: bidangTatakelola.id,
+        },
+      },
+    },
+    include: { pesertaMagang: true },
+  });
+  const ajuanLina = await prisma.ajuanMagang.create({
+    data: {
+      kategoriMagang: 'Mahasiswa',
+      statusPendidikan: 'Aktif',
+      jenjangPendidikan: 'S1',
+      instansi: 'Universitas Brawijaya',
+      jurusan: 'Ilmu Komputer',
+      tglMulai: threeWeeksAgo, // Selesai
+      tglSelesai: yesterday, // Selesai
+      temaMagang: 'Pengembangan Aplikasi',
+      statusUsulan: 'APPROVED',
+      pesertaId: user6.pesertaMagang.id,
+      bidangId: bidangTatakelola.id,
+      berkas: { create: createDummyBerkas() },
+      suratPenerimaan: {
+        create: {
+          noSurat: '132/SP/TATA/2025',
+          fileUrl: DUMMY_FILES.SURAT_PENERIMAAN,
+          fileId: 'file132',
+        },
+      },
+      laporan: {
+        create: {
+          fileLaporan: DUMMY_FILES.LAPORAN_AKHIR,
+          status: 'APPROVED',
+          catatan: 'Laporan diterima, baik.',
+        },
+      },
+      // Ulasan & Sertifikat KOSONG
     },
   });
   // LOGBOOK DIISI PENUH
-  await generateLogbookEntries(ajuanDina.id, threeWeeksAgo, yesterday);
-  // Tidak ada LaporanHasilMagang yang dibuat
+  await generateLogbookEntries(ajuanLina.id, threeWeeksAgo, yesterday);
 
-  // --- Kriteria 5 (Peserta 1/5 Selesai + Ulasan) ---
-  // PERIODE DIPERPENDEK: Mulai 3 minggu lalu, selesai 1 minggu lalu
-  console.log('Membuat Kriteria 5 (Siklus Selesai, Ulasan 1/5)...');
-  const user5 = await prisma.user.create({
+  // --- Kriteria 7: Siap Kirim Sertifikat (Logbook Penuh, Laporan Approved, Ulasan Terisi) ---
+  console.log('Membuat Kriteria 7 (Siap Kirim Sertifikat)...');
+  const user7 = await prisma.user.create({
+    data: {
+      email: 'peserta.siap.sertifikat@test.com',
+      password: defaultPassword,
+      role: 'peserta_magang',
+      pesertaMagang: {
+        create: {
+          namaLengkap: 'Kamal Siap Sertifikat',
+          tglLahir: new Date('2001-11-11T00:00:00Z'),
+          noTelepon: '081211113333',
+          nik: '1122112211221122',
+          nimNis: '111111',
+          instansi: 'Universitas Indonesia',
+          jurusan: 'Sistem Informasi',
+          alamat: 'Jl. Merdeka No. 11',
+          instagram: 'kamalsiap',
+          pasFoto: DUMMY_FILES.PP_COWOK,
+          status: 'APPROVED',
+          bidangId: bidangStat.id,
+        },
+      },
+    },
+    include: { pesertaMagang: true },
+  });
+  const ajuanKamal = await prisma.ajuanMagang.create({
+    data: {
+      kategoriMagang: 'Mahasiswa',
+      statusPendidikan: 'Aktif',
+      jenjangPendidikan: 'S1',
+      instansi: 'Universitas Indonesia',
+      jurusan: 'Sistem Informasi',
+      tglMulai: threeWeeksAgo, // Selesai
+      tglSelesai: oneWeekAgo, // Selesai
+      temaMagang: 'Digitalisasi Arsip',
+      statusUsulan: 'APPROVED',
+      pesertaId: user7.pesertaMagang.id,
+      bidangId: bidangStat.id,
+      berkas: { create: createDummyBerkas() },
+      suratPenerimaan: {
+        create: {
+          noSurat: '131/SP/STAT/2025',
+          fileUrl: DUMMY_FILES.SURAT_PENERIMAAN,
+          fileId: 'file131',
+        },
+      },
+      laporan: {
+        create: {
+          fileLaporan: DUMMY_FILES.LAPORAN_AKHIR,
+          status: 'APPROVED',
+          catatan: 'Baik dan tepat waktu.',
+        },
+      },
+      ulasan: {
+        create: {
+          ulasan: 'Sangat profesional. Mentor membimbing dengan baik.',
+          rating: 5,
+        },
+      },
+      // 'sertifikat' SENGANJA DIKOSONGKAN
+    },
+  });
+  // LOGBOOK DIISI PENUH
+  await generateLogbookEntries(ajuanKamal.id, threeWeeksAgo, oneWeekAgo);
+
+  // --- Kriteria 8 (5 Peserta Selesai 100% untuk Data Ulasan) ---
+  console.log('Membuat Kriteria 8 (Data Ulasan 1/5)...');
+  const user8 = await prisma.user.create({
     data: {
       email: 'peserta.selesai.1@test.com',
       password: defaultPassword,
@@ -376,11 +554,11 @@ async function main() {
       jenjangPendidikan: 'S1',
       instansi: 'Institut Teknologi',
       jurusan: 'Ilmu Komputer',
-      tglMulai: threeWeeksAgo, // Mulai 3 minggu lalu
-      tglSelesai: oneWeekAgo, // Selesai 1 minggu lalu
+      tglMulai: threeWeeksAgo,
+      tglSelesai: oneWeekAgo,
       temaMagang: 'Analisis Data Statistik Kependudukan',
       statusUsulan: 'APPROVED',
-      pesertaId: user5.pesertaMagang.id,
+      pesertaId: user8.pesertaMagang.id,
       bidangId: bidangStat.id,
       berkas: { create: createDummyBerkas() },
       suratPenerimaan: {
@@ -413,14 +591,10 @@ async function main() {
       },
     },
   });
-  // LOGBOOK DIISI PENUH
   await generateLogbookEntries(ajuanEka.id, threeWeeksAgo, oneWeekAgo);
 
-  // --- Kriteria 6 (4 Peserta Tambahan Selesai + Ulasan) ---
-  console.log('Membuat Kriteria 6 (4 Peserta Selesai Tambahan)...');
-
-  // Peserta 2/5
-  const user6 = await prisma.user.create({
+  console.log('Membuat Kriteria 8 (Data Ulasan 2/5)...');
+  const user9 = await prisma.user.create({
     data: {
       email: 'peserta.selesai.2@test.com',
       password: defaultPassword,
@@ -455,7 +629,7 @@ async function main() {
       tglSelesai: oneWeekAgo,
       temaMagang: 'Pengelolaan Media Sosial',
       statusUsulan: 'APPROVED',
-      pesertaId: user6.pesertaMagang.id,
+      pesertaId: user9.pesertaMagang.id,
       bidangId: bidangPikp.id,
       berkas: { create: createDummyBerkas() },
       suratPenerimaan: {
@@ -490,8 +664,8 @@ async function main() {
   });
   await generateLogbookEntries(ajuanFajar.id, threeWeeksAgo, oneWeekAgo);
 
-  // Peserta 3/5
-  const user7 = await prisma.user.create({
+  console.log('Membuat Kriteria 8 (Data Ulasan 3/5)...');
+  const user10 = await prisma.user.create({
     data: {
       email: 'peserta.selesai.3@test.com',
       password: defaultPassword,
@@ -526,7 +700,7 @@ async function main() {
       tglSelesai: oneWeekAgo,
       temaMagang: 'Administrasi Perkantoran',
       statusUsulan: 'APPROVED',
-      pesertaId: user7.pesertaMagang.id,
+      pesertaId: user10.pesertaMagang.id,
       bidangId: bidangSekre.id,
       berkas: { create: createDummyBerkas() },
       suratPenerimaan: {
@@ -561,8 +735,8 @@ async function main() {
   });
   await generateLogbookEntries(ajuanGita.id, threeWeeksAgo, oneWeekAgo);
 
-  // Peserta 4/5
-  const user8 = await prisma.user.create({
+  console.log('Membuat Kriteria 8 (Data Ulasan 4/5)...');
+  const user11 = await prisma.user.create({
     data: {
       email: 'peserta.selesai.4@test.com',
       password: defaultPassword,
@@ -597,7 +771,7 @@ async function main() {
       tglSelesai: oneWeekAgo,
       temaMagang: 'Pemeliharaan Jaringan',
       statusUsulan: 'APPROVED',
-      pesertaId: user8.pesertaMagang.id,
+      pesertaId: user11.pesertaMagang.id,
       bidangId: bidangInfra.id,
       berkas: { create: createDummyBerkas() },
       suratPenerimaan: {
@@ -632,8 +806,8 @@ async function main() {
   });
   await generateLogbookEntries(ajuanHadi.id, threeWeeksAgo, oneWeekAgo);
 
-  // Peserta 5/5
-  const user9 = await prisma.user.create({
+  console.log('Membuat Kriteria 8 (Data Ulasan 5/5)...');
+  const user12 = await prisma.user.create({
     data: {
       email: 'peserta.selesai.5@test.com',
       password: defaultPassword,
@@ -668,7 +842,7 @@ async function main() {
       tglSelesai: oneWeekAgo,
       temaMagang: 'Pembuatan Konten Infografis',
       statusUsulan: 'APPROVED',
-      pesertaId: user9.pesertaMagang.id,
+      pesertaId: user12.pesertaMagang.id,
       bidangId: bidangPikp.id,
       berkas: { create: createDummyBerkas() },
       suratPenerimaan: {
