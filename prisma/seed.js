@@ -3,9 +3,41 @@ const bcrypt = require('bcrypt');
 
 const prisma = new PrismaClient();
 
+// ====================================================================
+// KONSTANTA FILE DUMMY (dari ImageKit)
+// ====================================================================
+const DUMMY_FILES = {
+  LAPORAN_AKHIR:
+    'https://ik.imagekit.io/magangdiskominfo/data_dummy/laporan_akhir.pdf?updatedAt=1762706162711',
+  LOGBOOK:
+    'https://ik.imagekit.io/magangdiskominfo/data_dummy/logbook.pdf?updatedAt=1762706022775',
+  SERTIFIKAT:
+    'https://ik.imagekit.io/magangdiskominfo/data_dummy/sertifikat.pdf?updatedAt=1762705951749',
+  // Menggantikan 'surat_magang'
+  SURAT_PENERIMAAN:
+    'https://ik.imagekit.io/magangdiskominfo/data_dummy/surat_magang.pdf?updatedAt=1762705844512',
+  SURAT_PENGANTAR:
+    'https://ik.imagekit.io/magangdiskominfo/data_dummy/surat_pengantar.pdf?updatedAt=1762705806248',
+  CV: 'https://ik.imagekit.io/magangdiskominfo/data_dummy/cv_dummy.pdf?updatedAt=1762705568296',
+  KTP: 'https://ik.imagekit.io/magangdiskominfo/data_dummy/ktp_dummy.pdf?updatedAt=1762705456578',
+  BAKESBANGPOL_PROV:
+    'https://ik.imagekit.io/magangdiskominfo/data_dummy/bakesbangpol_prov.pdf?updatedAt=1762705479697',
+  BAKESBANGPOL_SDA:
+    'https://ik.imagekit.io/magangdiskominfo/data_dummy/bakesbangpol_sda.pdf?updatedAt=1762705196337',
+  PROPOSAL_MAGANG:
+    'https://ik.imagekit.io/magangdiskominfo/data_dummy/proposal_magang.pdf?updatedAt=1762705169999',
+  PP_CEWEK:
+    'https://ik.imagekit.io/magangdiskominfo/data_dummy/pp_cewek_dummy.png?updatedAt=1762707176737',
+  PP_COWOK:
+    'https://ik.imagekit.io/magangdiskominfo/data_dummy/pp_cowok_dummy.png?updatedAt=1762707176437',
+};
+
+// ====================================================================
+// HELPER FUNCTIONS
+// ====================================================================
+
 // Helper untuk hash password
 async function hashPassword(password) {
-  // Anda bisa mengganti 10 dengan angka lain jika mau (salt rounds)
   return bcrypt.hash(password, 10);
 }
 
@@ -13,70 +45,98 @@ async function hashPassword(password) {
 function getDates() {
   const today = new Date();
 
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
+  const oneDay = 24 * 60 * 60 * 1000;
 
-  const lastMonth = new Date(today);
-  lastMonth.setMonth(today.getMonth() - 1);
+  // Periode 3 minggu (21 hari)
+  const threeWeeksAgo = new Date(today.getTime() - 21 * oneDay);
+  const oneWeekAgo = new Date(today.getTime() - 7 * oneDay);
+  const yesterday = new Date(today.getTime() - 1 * oneDay);
+  const nextTwoWeeks = new Date(today.getTime() + 14 * oneDay);
 
-  const twoMonthsAgo = new Date(today);
-  twoMonthsAgo.setMonth(today.getMonth() - 2);
-
-  const nextMonth = new Date(today);
-  nextMonth.setMonth(today.getMonth() + 1);
-
-  return { today, yesterday, lastMonth, twoMonthsAgo, nextMonth };
+  return { today, yesterday, oneWeekAgo, threeWeeksAgo, nextTwoWeeks };
 }
 
-// Fungsi dummy data untuk berkas (agar tidak berulang)
+// Fungsi dummy data untuk berkas (diperbarui dgn URL ImageKit)
 function createDummyBerkas() {
   return {
-    suratPengantar: 'path/to/surat_pengantar.pdf',
-    proposalMagang: 'path/to/proposal_magang.pdf',
-    cv: 'path/to/cv.pdf',
-    ktp: 'path/to/ktp.pdf',
-    suratBakesbangpolSda: 'path/to/bakesbangpol_sda.pdf',
+    suratPengantar: DUMMY_FILES.SURAT_PENGANTAR,
+    proposalMagang: DUMMY_FILES.PROPOSAL_MAGANG,
+    cv: DUMMY_FILES.CV,
+    ktp: DUMMY_FILES.KTP,
+    suratBakesbangpolSda: DUMMY_FILES.BAKESBANGPOL_SDA,
+    suratBakesbangpolProv: DUMMY_FILES.BAKESBANGPOL_PROV, // Tambahkan provinsi
   };
 }
 
+// FUNGSI BARU: Untuk mengisi logbook harian (Senin - Jumat)
+async function generateLogbookEntries(ajuanId, tglMulai, tglSelesai) {
+  console.log(`Mengisi logbook untuk ajuan ${ajuanId}...`);
+  const logEntries = [];
+  let currentDate = new Date(tglMulai);
+  const endDate = new Date(tglSelesai);
+  const oneDay = 24 * 60 * 60 * 1000;
+
+  const deskripsiAcak = [
+    'Mempelajari alur kerja sistem',
+    'Rapat harian dan pembagian tugas',
+    'Melakukan perbaikan bug pada fitur X',
+    'Membuat dokumentasi teknis',
+    'Mengerjakan modul login',
+    'Review kode dengan mentor',
+    'Presentasi progres mingguan',
+  ];
+
+  while (currentDate <= endDate) {
+    const dayOfWeek = currentDate.getDay();
+    // 0 = Minggu, 6 = Sabtu. Hanya jalankan untuk 1-5 (Senin-Jumat)
+    if (dayOfWeek > 0 && dayOfWeek < 6) {
+      logEntries.push({
+        ajuanId: ajuanId,
+        tanggal: new Date(currentDate),
+        deskripsi:
+          deskripsiAcak[Math.floor(Math.random() * deskripsiAcak.length)],
+        logbookFile: Math.random() > 0.7 ? DUMMY_FILES.LOGBOOK : null, // Kadang ada file
+      });
+    }
+    // Maju ke hari berikutnya
+    currentDate = new Date(currentDate.getTime() + oneDay);
+  }
+
+  if (logEntries.length > 0) {
+    await prisma.logbook.createMany({
+      data: logEntries,
+    });
+    console.log(`-> ${logEntries.length} logbook terisi.`);
+  }
+}
+
+// ====================================================================
+// FUNGSI UTAMA SEEDING
+// ====================================================================
 async function main() {
   console.log('🌱 Memulai proses seeding...');
-  const { today, yesterday, lastMonth, twoMonthsAgo, nextMonth } = getDates();
-  // Password default untuk semua akun dummy
+  const { today, yesterday, oneWeekAgo, threeWeeksAgo, nextTwoWeeks } =
+    getDates();
   const defaultPassword = await hashPassword('password123');
 
-  // ====================================================================
   // 1. 🧹 HAPUS DATA LAMA (Urutan penting!)
-  // ====================================================================
   console.log('Membersihkan data lama...');
-  // Hapus model yang bergantung pada AjuanMagang
   await prisma.logbook.deleteMany();
   await prisma.laporanHasilMagang.deleteMany();
   await prisma.sertifikat.deleteMany();
   await prisma.ulasanMagang.deleteMany();
   await prisma.suratPenerimaan.deleteMany();
   await prisma.berkasMagang.deleteMany();
-
-  // Hapus model yang bergantung pada User
   await prisma.notifikasi.deleteMany();
   await prisma.kritikSaran.deleteMany();
-
-  // Hapus model yang bergantung pada PesertaMagang & KuotaBidang
   await prisma.ajuanMagang.deleteMany();
-
-  // Hapus model yang bergantung pada User & KuotaBidang
   await prisma.pesertaMagang.deleteMany();
   await prisma.admin.deleteMany();
   await prisma.subKoordinatorBidang.deleteMany();
-
-  // Hapus model dasar
   await prisma.user.deleteMany();
   await prisma.kuotaBidang.deleteMany();
-  await prisma.statistikPengunjung.deleteMany(); // Jika ada
 
-  // ====================================================================
   // 2. 🏢 BUAT DATA PRASYARAT (KUOTA BIDANG)
-  // ====================================================================
   console.log('Membuat Kuota Bidang...');
   const bidangInfra = await prisma.kuotaBidang.create({
     data: { nama: 'Infrastruktur dan Keamanan TIK', kuota: 10 },
@@ -94,11 +154,8 @@ async function main() {
     data: { nama: 'Tata Kelola Informatika', kuota: 10 },
   });
 
-  // ====================================================================
   // 3. 🧑‍💼 BUAT DATA ADMIN & SUBKOORDINATOR
-  // ====================================================================
   console.log('Membuat Admin & Subkoordinator...');
-  // Admin Utama
   await prisma.user.create({
     data: {
       email: 'admin@test.com',
@@ -107,13 +164,11 @@ async function main() {
       admin: {
         create: {
           nama: 'Admin Utama',
-          bidangId: bidangTatakelola.id, // Admin ini mengawasi Tata Kelola
+          bidangId: bidangTatakelola.id,
         },
       },
     },
   });
-
-  // Subkoordinator Bidang PIKP
   await prisma.user.create({
     data: {
       email: 'subkoor.pikp@test.com',
@@ -122,15 +177,13 @@ async function main() {
       subKoordinatorBidang: {
         create: {
           nama: 'Subkoor PIKP',
-          bidangId: bidangPikp.id, // Subkoor ini penanggung jawab PIKP
+          bidangId: bidangPikp.id,
         },
       },
     },
   });
 
-  // ====================================================================
   // 4. 👤 BUAT DATA DUMMY PESERTA MAGANG
-  // ====================================================================
 
   // --- Kriteria 1: Registrasi, belum di-approve (PENDING) ---
   console.log('Membuat Kriteria 1 (Pending Approval)...');
@@ -150,9 +203,8 @@ async function main() {
           jurusan: 'Teknik Informatika',
           alamat: 'Jl. Merdeka No. 1',
           instagram: 'budipending',
-          pasFoto: 'path/to/foto_budi.jpg',
+          pasFoto: DUMMY_FILES.PP_COWOK,
           status: 'PENDING',
-          // bidangId sengaja null karena belum diapprove
         },
       },
     },
@@ -176,15 +228,16 @@ async function main() {
           jurusan: 'Ilmu Komunikasi',
           alamat: 'Jl. Damai No. 2',
           instagram: 'aniapproved',
-          pasFoto: 'path/to/foto_ani.jpg',
+          pasFoto: DUMMY_FILES.PP_CEWEK,
           status: 'APPROVED',
-          bidangId: bidangPikp.id, // Sudah di-assign ke bidang PIKP
+          bidangId: bidangPikp.id,
         },
       },
     },
   });
 
-  // --- Kriteria 3: Ajuan diterima, belum isi logbook ---
+  // --- Kriteria 3: Ajuan diterima, belum isi logbook (Magang baru mulai) ---
+  // PERIODE DIPERPENDEK: Mulai hari ini, selesai 2 minggu lagi
   console.log('Membuat Kriteria 3 (Ajuan Diterima, No Logbook)...');
   const user3 = await prisma.user.create({
     data: {
@@ -202,20 +255,14 @@ async function main() {
           jurusan: 'Manajemen Informatika',
           alamat: 'Jl. Sejahtera No. 3',
           instagram: 'candralog',
-          pasFoto: 'path/to/foto_candra.jpg',
+          pasFoto: DUMMY_FILES.PP_COWOK,
           status: 'APPROVED',
           bidangId: bidangTatakelola.id,
         },
       },
     },
-    // ---- PERBAIKAN: Include data pesertaMagang yg baru dibuat ----
-    include: {
-      pesertaMagang: true,
-    },
-    // -------------------------------------------------------------
+    include: { pesertaMagang: true },
   });
-
-  // Buat Ajuan Magang untuk Candra
   await prisma.ajuanMagang.create({
     data: {
       kategoriMagang: 'Mahasiswa',
@@ -224,27 +271,25 @@ async function main() {
       instansi: 'Politeknik Negeri',
       jurusan: 'Manajemen Informatika',
       tglMulai: today, // Magang dimulai hari ini
-      tglSelesai: nextMonth, // Selesai bulan depan
+      tglSelesai: nextTwoWeeks, // Selesai 2 minggu lagi
       temaMagang: 'Pengembangan Sistem Internal',
-      statusUsulan: 'APPROVED', // Ajuan diterima
-      pesertaId: user3.pesertaMagang.id, // <-- Ini sekarang aman
+      statusUsulan: 'APPROVED',
+      pesertaId: user3.pesertaMagang.id,
       bidangId: bidangTatakelola.id,
-      // Buat data relasi (Berkas & Surat)
-      berkas: {
-        create: createDummyBerkas(),
-      },
+      berkas: { create: createDummyBerkas() },
       suratPenerimaan: {
         create: {
           noSurat: '123/SP/TI/2025',
-          fileUrl: 'path/to/surat_penerimaan_candra.pdf',
+          fileUrl: DUMMY_FILES.SURAT_PENERIMAAN,
           fileId: 'file123',
         },
       },
-      // Tidak ada Logbook yang dibuat
     },
   });
+  // Tidak ada logbook dibuat untuk kriteria 3
 
-  // --- Kriteria 4: Magang hampir selesai, belum kirim laporan ---
+  // --- Kriteria 4: Magang selesai, logbook penuh, belum kirim laporan ---
+  // PERIODE DIPERPENDEK: Mulai 3 minggu lalu, selesai kemarin
   console.log('Membuat Kriteria 4 (Hampir Selesai, No Laporan)...');
   const user4 = await prisma.user.create({
     data: {
@@ -262,20 +307,14 @@ async function main() {
           jurusan: 'Sistem Informasi',
           alamat: 'Jl. Pahlawan No. 4',
           instagram: 'dinalap',
-          pasFoto: 'path/to/foto_dina.jpg',
+          pasFoto: DUMMY_FILES.PP_CEWEK,
           status: 'APPROVED',
           bidangId: bidangInfra.id,
         },
       },
     },
-    // ---- PERBAIKAN: Include data pesertaMagang yg baru dibuat ----
-    include: {
-      pesertaMagang: true,
-    },
-    // -------------------------------------------------------------
+    include: { pesertaMagang: true },
   });
-
-  // Buat Ajuan Magang untuk Dina
   const ajuanDina = await prisma.ajuanMagang.create({
     data: {
       kategoriMagang: 'Mahasiswa',
@@ -283,51 +322,32 @@ async function main() {
       jenjangPendidikan: 'S1',
       instansi: 'Universitas Veteran',
       jurusan: 'Sistem Informasi',
-      tglMulai: twoMonthsAgo, // Mulai 2 bulan lalu
+      tglMulai: threeWeeksAgo, // Mulai 3 minggu lalu
       tglSelesai: yesterday, // Selesai kemarin
       temaMagang: 'Analisis Keamanan Jaringan',
       statusUsulan: 'APPROVED',
-      pesertaId: user4.pesertaMagang.id, // <-- Ini sekarang aman
+      pesertaId: user4.pesertaMagang.id,
       bidangId: bidangInfra.id,
-      berkas: {
-        create: createDummyBerkas(),
-      },
+      berkas: { create: createDummyBerkas() },
       suratPenerimaan: {
         create: {
           noSurat: '124/SP/INFRA/2025',
-          fileUrl: 'path/to/surat_penerimaan_dina.pdf',
+          fileUrl: DUMMY_FILES.SURAT_PENERIMAAN,
           fileId: 'file124',
         },
       },
     },
   });
-  // Buat beberapa Logbook untuk Dina
-  await prisma.logbook.createMany({
-    data: [
-      {
-        ajuanId: ajuanDina.id,
-        tanggal: twoMonthsAgo, // Tanggal logbook
-        deskripsi: 'Melakukan analisis kebutuhan sistem keamanan.',
-      },
-      {
-        ajuanId: ajuanDina.id,
-        tanggal: lastMonth, // Tanggal logbook
-        deskripsi: 'Mulai implementasi firewall.',
-      },
-      {
-        ajuanId: ajuanDina.id,
-        tanggal: yesterday, // Tanggal logbook
-        deskripsi: 'Menyelesaikan testing penetrasi.',
-      },
-    ],
-  });
+  // LOGBOOK DIISI PENUH
+  await generateLogbookEntries(ajuanDina.id, threeWeeksAgo, yesterday);
   // Tidak ada LaporanHasilMagang yang dibuat
 
-  // --- Kriteria 5: Magang Selesai, Laporan Approved, Ada Ulasan ---
-  console.log('Membuat Kriteria 5 (Siklus Selesai, Ada Ulasan)...');
+  // --- Kriteria 5 (Peserta 1/5 Selesai + Ulasan) ---
+  // PERIODE DIPERPENDEK: Mulai 3 minggu lalu, selesai 1 minggu lalu
+  console.log('Membuat Kriteria 5 (Siklus Selesai, Ulasan 1/5)...');
   const user5 = await prisma.user.create({
     data: {
-      email: 'peserta.selesai@test.com',
+      email: 'peserta.selesai.1@test.com',
       password: defaultPassword,
       role: 'peserta_magang',
       pesertaMagang: {
@@ -341,20 +361,14 @@ async function main() {
           jurusan: 'Ilmu Komputer',
           alamat: 'Jl. Juang No. 5',
           instagram: 'ekaselesai',
-          pasFoto: 'path/to/foto_eka.jpg',
+          pasFoto: DUMMY_FILES.PP_CEWEK,
           status: 'APPROVED',
-          bidangId: bidangStat.id, // Bidang Statistik
+          bidangId: bidangStat.id,
         },
       },
     },
-    // ---- PERBAIKAN: Include data pesertaMagang yg baru dibuat ----
-    include: {
-      pesertaMagang: true,
-    },
-    // -------------------------------------------------------------
+    include: { pesertaMagang: true },
   });
-
-  // Buat Ajuan Magang LENGKAP untuk Eka
   const ajuanEka = await prisma.ajuanMagang.create({
     data: {
       kategoriMagang: 'Mahasiswa',
@@ -362,61 +376,332 @@ async function main() {
       jenjangPendidikan: 'S1',
       instansi: 'Institut Teknologi',
       jurusan: 'Ilmu Komputer',
-      tglMulai: twoMonthsAgo, // Mulai 2 bulan lalu
-      tglSelesai: lastMonth, // Selesai 1 bulan lalu
+      tglMulai: threeWeeksAgo, // Mulai 3 minggu lalu
+      tglSelesai: oneWeekAgo, // Selesai 1 minggu lalu
       temaMagang: 'Analisis Data Statistik Kependudukan',
       statusUsulan: 'APPROVED',
-      pesertaId: user5.pesertaMagang.id, // <-- Ini sekarang aman
+      pesertaId: user5.pesertaMagang.id,
       bidangId: bidangStat.id,
-      // Semua relasi dibuat
-      berkas: {
-        create: createDummyBerkas(),
-      },
+      berkas: { create: createDummyBerkas() },
       suratPenerimaan: {
         create: {
           noSurat: '125/SP/STAT/2025',
-          fileUrl: 'path/to/surat_penerimaan_eka.pdf',
+          fileUrl: DUMMY_FILES.SURAT_PENERIMAAN,
           fileId: 'file125',
         },
       },
       laporan: {
         create: {
-          fileLaporan: 'path/to/laporan_eka_final.pdf',
-          status: 'APPROVED', // Laporan sudah di-approve
-          catatan: 'Laporan sangat baik dan komprehensif.',
+          fileLaporan: DUMMY_FILES.LAPORAN_AKHIR,
+          status: 'APPROVED',
+          catatan: 'Laporan sangat baik.',
         },
       },
       sertifikat: {
         create: {
           noSertifikat: 'SRT/2025/001',
-          nilai: 95, // Mendapat nilai A
-          fileUrl: 'path/to/sertifikat_eka.pdf',
+          nilai: 95,
+          fileUrl: DUMMY_FILES.SERTIFIKAT,
         },
       },
       ulasan: {
         create: {
           ulasan:
-            'Pengalaman magang yang luar biasa! Pembimbing sangat membantu dan materi yang didapat sangat relevan dengan perkuliahan. Sangat direkomendasikan.',
-          rating: 5, // Bintang 5
+            'Pengalaman magang yang luar biasa! Pembimbing sangat membantu dan materi relevan.',
+          rating: 5,
         },
       },
     },
   });
-  // Buat Logbook untuk Eka
-  await prisma.logbook.createMany({
-    data: [
-      {
-        ajuanId: ajuanEka.id,
-        tanggal: twoMonthsAgo,
-        deskripsi: 'Briefing awal dan pengenalan lingkungan kerja.',
+  // LOGBOOK DIISI PENUH
+  await generateLogbookEntries(ajuanEka.id, threeWeeksAgo, oneWeekAgo);
+
+  // --- Kriteria 6 (4 Peserta Tambahan Selesai + Ulasan) ---
+  console.log('Membuat Kriteria 6 (4 Peserta Selesai Tambahan)...');
+
+  // Peserta 2/5
+  const user6 = await prisma.user.create({
+    data: {
+      email: 'peserta.selesai.2@test.com',
+      password: defaultPassword,
+      role: 'peserta_magang',
+      pesertaMagang: {
+        create: {
+          namaLengkap: 'Fajar Baik',
+          tglLahir: new Date('2002-02-02T00:00:00Z'),
+          noTelepon: '081266665555',
+          nik: '1111222233334444',
+          nimNis: '121212',
+          instansi: 'Universitas Airlangga',
+          jurusan: 'Humas',
+          alamat: 'Jl. Dharmawangsa No. 6',
+          instagram: 'fajarbaik',
+          pasFoto: DUMMY_FILES.PP_COWOK,
+          status: 'APPROVED',
+          bidangId: bidangPikp.id,
+        },
       },
-      {
-        ajuanId: ajuanEka.id,
-        tanggal: lastMonth,
-        deskripsi: 'Menyerahkan draf laporan akhir untuk direview.',
-      },
-    ],
+    },
+    include: { pesertaMagang: true },
   });
+  const ajuanFajar = await prisma.ajuanMagang.create({
+    data: {
+      kategoriMagang: 'Mahasiswa',
+      statusPendidikan: 'Aktif',
+      jenjangPendidikan: 'S1',
+      instansi: 'Universitas Airlangga',
+      jurusan: 'Humas',
+      tglMulai: threeWeeksAgo,
+      tglSelesai: oneWeekAgo,
+      temaMagang: 'Pengelolaan Media Sosial',
+      statusUsulan: 'APPROVED',
+      pesertaId: user6.pesertaMagang.id,
+      bidangId: bidangPikp.id,
+      berkas: { create: createDummyBerkas() },
+      suratPenerimaan: {
+        create: {
+          noSurat: '126/SP/PIKP/2025',
+          fileUrl: DUMMY_FILES.SURAT_PENERIMAAN,
+          fileId: 'file126',
+        },
+      },
+      laporan: {
+        create: {
+          fileLaporan: DUMMY_FILES.LAPORAN_AKHIR,
+          status: 'APPROVED',
+          catatan: 'Cukup baik.',
+        },
+      },
+      sertifikat: {
+        create: {
+          noSertifikat: 'SRT/2025/002',
+          nilai: 85,
+          fileUrl: DUMMY_FILES.SERTIFIKAT,
+        },
+      },
+      ulasan: {
+        create: {
+          ulasan:
+            'Tempatnya nyaman, orang-orangnya ramah. Dapat banyak ilmu baru tentang kehumasan.',
+          rating: 4,
+        },
+      },
+    },
+  });
+  await generateLogbookEntries(ajuanFajar.id, threeWeeksAgo, oneWeekAgo);
+
+  // Peserta 3/5
+  const user7 = await prisma.user.create({
+    data: {
+      email: 'peserta.selesai.3@test.com',
+      password: defaultPassword,
+      role: 'peserta_magang',
+      pesertaMagang: {
+        create: {
+          namaLengkap: 'Gita Cukup',
+          tglLahir: new Date('2003-03-03T00:00:00Z'),
+          noTelepon: '081277774444',
+          nik: '5555666677778888',
+          nimNis: '343434',
+          instansi: 'Politeknik Elektronika',
+          jurusan: 'Sekretaris',
+          alamat: 'Jl. Mulyosari No. 7',
+          instagram: 'gitacukup',
+          pasFoto: DUMMY_FILES.PP_CEWEK,
+          status: 'APPROVED',
+          bidangId: bidangSekre.id,
+        },
+      },
+    },
+    include: { pesertaMagang: true },
+  });
+  const ajuanGita = await prisma.ajuanMagang.create({
+    data: {
+      kategoriMagang: 'Mahasiswa',
+      statusPendidikan: 'Aktif',
+      jenjangPendidikan: 'D3',
+      instansi: 'Politeknik Elektronika',
+      jurusan: 'Sekretaris',
+      tglMulai: threeWeeksAgo,
+      tglSelesai: oneWeekAgo,
+      temaMagang: 'Administrasi Perkantoran',
+      statusUsulan: 'APPROVED',
+      pesertaId: user7.pesertaMagang.id,
+      bidangId: bidangSekre.id,
+      berkas: { create: createDummyBerkas() },
+      suratPenerimaan: {
+        create: {
+          noSurat: '127/SP/SEKRE/2025',
+          fileUrl: DUMMY_FILES.SURAT_PENERIMAAN,
+          fileId: 'file127',
+        },
+      },
+      laporan: {
+        create: {
+          fileLaporan: DUMMY_FILES.LAPORAN_AKHIR,
+          status: 'APPROVED',
+          catatan: 'Sudah sesuai.',
+        },
+      },
+      sertifikat: {
+        create: {
+          noSertifikat: 'SRT/2025/003',
+          nilai: 80,
+          fileUrl: DUMMY_FILES.SERTIFIKAT,
+        },
+      },
+      ulasan: {
+        create: {
+          ulasan:
+            'Secara keseluruhan baik, namun kadang tugas kurang menantang.',
+          rating: 3,
+        },
+      },
+    },
+  });
+  await generateLogbookEntries(ajuanGita.id, threeWeeksAgo, oneWeekAgo);
+
+  // Peserta 4/5
+  const user8 = await prisma.user.create({
+    data: {
+      email: 'peserta.selesai.4@test.com',
+      password: defaultPassword,
+      role: 'peserta_magang',
+      pesertaMagang: {
+        create: {
+          namaLengkap: 'Hadi Mantap',
+          tglLahir: new Date('2001-08-17T00:00:00Z'),
+          noTelepon: '081288883333',
+          nik: '9999000011112222',
+          nimNis: '565656',
+          instansi: 'Universitas Pembangunan',
+          jurusan: 'Teknik Informatika',
+          alamat: 'Jl. Rungkut No. 8',
+          instagram: 'hadimantap',
+          pasFoto: DUMMY_FILES.PP_COWOK,
+          status: 'APPROVED',
+          bidangId: bidangInfra.id,
+        },
+      },
+    },
+    include: { pesertaMagang: true },
+  });
+  const ajuanHadi = await prisma.ajuanMagang.create({
+    data: {
+      kategoriMagang: 'Mahasiswa',
+      statusPendidikan: 'Aktif',
+      jenjangPendidikan: 'S1',
+      instansi: 'Universitas Pembangunan',
+      jurusan: 'Teknik Informatika',
+      tglMulai: threeWeeksAgo,
+      tglSelesai: oneWeekAgo,
+      temaMagang: 'Pemeliharaan Jaringan',
+      statusUsulan: 'APPROVED',
+      pesertaId: user8.pesertaMagang.id,
+      bidangId: bidangInfra.id,
+      berkas: { create: createDummyBerkas() },
+      suratPenerimaan: {
+        create: {
+          noSurat: '128/SP/INFRA/2025',
+          fileUrl: DUMMY_FILES.SURAT_PENERIMAAN,
+          fileId: 'file128',
+        },
+      },
+      laporan: {
+        create: {
+          fileLaporan: DUMMY_FILES.LAPORAN_AKHIR,
+          status: 'APPROVED',
+          catatan: 'Luar biasa.',
+        },
+      },
+      sertifikat: {
+        create: {
+          noSertifikat: 'SRT/2025/004',
+          nilai: 98,
+          fileUrl: DUMMY_FILES.SERTIFIKAT,
+        },
+      },
+      ulasan: {
+        create: {
+          ulasan:
+            'Sangat-sangat recommended! Ilmunya daging semua, mentornya jago-jago. Belajar banyak soal networking dan security.',
+          rating: 5,
+        },
+      },
+    },
+  });
+  await generateLogbookEntries(ajuanHadi.id, threeWeeksAgo, oneWeekAgo);
+
+  // Peserta 5/5
+  const user9 = await prisma.user.create({
+    data: {
+      email: 'peserta.selesai.5@test.com',
+      password: defaultPassword,
+      role: 'peserta_magang',
+      pesertaMagang: {
+        create: {
+          namaLengkap: 'Indah Puas',
+          tglLahir: new Date('2002-06-10T00:00:00Z'),
+          noTelepon: '081299992222',
+          nik: '1234123412341234',
+          nimNis: '787878',
+          instansi: 'Universitas Surabaya',
+          jurusan: 'Desain Komunikasi Visual',
+          alamat: 'Jl. Ngagel No. 9',
+          instagram: 'indahpuas',
+          pasFoto: DUMMY_FILES.PP_CEWEK,
+          status: 'APPROVED',
+          bidangId: bidangPikp.id,
+        },
+      },
+    },
+    include: { pesertaMagang: true },
+  });
+  const ajuanIndah = await prisma.ajuanMagang.create({
+    data: {
+      kategoriMagang: 'Mahasiswa',
+      statusPendidikan: 'Aktif',
+      jenjangPendidikan: 'S1',
+      instansi: 'Universitas Surabaya',
+      jurusan: 'Desain Komunikasi Visual',
+      tglMulai: threeWeeksAgo,
+      tglSelesai: oneWeekAgo,
+      temaMagang: 'Pembuatan Konten Infografis',
+      statusUsulan: 'APPROVED',
+      pesertaId: user9.pesertaMagang.id,
+      bidangId: bidangPikp.id,
+      berkas: { create: createDummyBerkas() },
+      suratPenerimaan: {
+        create: {
+          noSurat: '129/SP/PIKP/2025',
+          fileUrl: DUMMY_FILES.SURAT_PENERIMAAN,
+          fileId: 'file129',
+        },
+      },
+      laporan: {
+        create: {
+          fileLaporan: DUMMY_FILES.LAPORAN_AKHIR,
+          status: 'APPROVED',
+          catatan: 'Desainnya kreatif.',
+        },
+      },
+      sertifikat: {
+        create: {
+          noSertifikat: 'SRT/2025/005',
+          nilai: 92,
+          fileUrl: DUMMY_FILES.SERTIFIKAT,
+        },
+      },
+      ulasan: {
+        create: {
+          ulasan:
+            'Seru banget! Dikasih kepercayaan buat handle desain beneran. Portofolio auto nambah. Terima kasih!',
+          rating: 5,
+        },
+      },
+    },
+  });
+  await generateLogbookEntries(ajuanIndah.id, threeWeeksAgo, oneWeekAgo);
 
   console.log('✅ Proses seeding selesai.');
 }
