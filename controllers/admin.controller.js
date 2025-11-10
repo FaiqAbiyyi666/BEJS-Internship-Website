@@ -295,13 +295,21 @@ module.exports = {
       alamat,
       instansi,
       jurusan,
+      ajuanId,
       periodeMulai,
       periodeSelesai,
       bidangId,
-      ajuanId,
     } = req.body;
 
-    if (!email || !namaLengkap || !tglLahir || !noTelepon || !nik || !alamat) {
+    if (
+      !email ||
+      !namaLengkap ||
+      !tglLahir ||
+      !noTelepon ||
+      !nik ||
+      !alamat ||
+      !nimNis
+    ) {
       return res.status(400).json({
         status: false,
         message:
@@ -355,6 +363,15 @@ module.exports = {
                 bidangId: bidangId,
               },
             });
+
+            await tx.pesertaMagang.update({
+              where: { id: peserta.id },
+              data: {
+                bidangId: bidangId,
+              },
+            });
+          } else {
+            throw new Error('Data AjuanMagang tidak ditemukan.');
           }
         }
       });
@@ -365,6 +382,12 @@ module.exports = {
       });
     } catch (error) {
       console.error('Error saat Admin update data peserta:', error);
+      if (
+        error.message.includes('PesertaMagang') ||
+        error.message.includes('AjuanMagang')
+      ) {
+        return res.status(404).json({ status: false, message: error.message });
+      }
       next(error);
     }
   },
@@ -401,7 +424,7 @@ module.exports = {
       const profileData = {
         nama: admin.nama,
         email: admin.user.email,
-        tanggalBergabung: formatdDate(admin.createdAt),
+        tanggalBergabung: admin.createdAt,
         bidang: admin.bidang
           ? { id: admin.bidang.id, nama: admin.bidang.nama }
           : null,

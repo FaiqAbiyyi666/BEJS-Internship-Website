@@ -4,12 +4,28 @@ const prisma = new PrismaClient();
 module.exports = {
   getAllKuotaBidang: async (req, res, next) => {
     try {
+      const today = new Date(); // <--- Tambahkan tanggal hari ini
+
       const bidangWithCount = await prisma.kuotaBidang.findMany({
         include: {
           _count: {
             select: {
+              // Hitung relasi PesertaMagang
               PesertaMagang: {
-                where: { status: 'APPROVED' },
+                // <--- AWAL LOGIKA BARU ---
+                where: {
+                  status: 'APPROVED', // 1. Profilnya disetujui
+                  ajuan: {
+                    // 2. Dan punya setidaknya satu ajuan
+                    some: {
+                      statusUsulan: 'APPROVED', // 3. Yang ajuannya disetujui
+                      tglMulai: { lte: today }, // 4. Sudah dimulai
+                      tglSelesai: { gte: today }, // 5. Dan belum selesai
+                      sertifikat: { is: null }, // 6. Dan belum lulus
+                    },
+                  },
+                },
+                // <--- AKHIR LOGIKA BARU ---
               },
             },
           },
@@ -23,7 +39,7 @@ module.exports = {
         id: bidang.id,
         nama: bidang.nama,
         kuota: bidang.kuota,
-        pesertaAktif: bidang._count.PesertaMagang,
+        pesertaAktif: bidang._count.PesertaMagang, // Ini sekarang jadi akurat
       }));
 
       return res.status(200).json({
@@ -39,13 +55,27 @@ module.exports = {
   getKuotaBidangById: async (req, res, next) => {
     try {
       const { id } = req.params;
+      const today = new Date(); // <--- Tambahkan tanggal hari ini
+
       const bidang = await prisma.kuotaBidang.findUnique({
         where: { id },
         include: {
           _count: {
             select: {
               PesertaMagang: {
-                where: { status: 'APPROVED' },
+                // <--- AWAL LOGIKA BARU ---
+                where: {
+                  status: 'APPROVED',
+                  ajuan: {
+                    some: {
+                      statusUsulan: 'APPROVED',
+                      tglMulai: { lte: today },
+                      tglSelesai: { gte: today },
+                      sertifikat: { is: null },
+                    },
+                  },
+                },
+                // <--- AKHIR LOGIKA BARU ---
               },
             },
           },
@@ -64,7 +94,7 @@ module.exports = {
         id: bidang.id,
         nama: bidang.nama,
         kuota: bidang.kuota,
-        pesertaAktif: bidang._count.PesertaMagang,
+        pesertaAktif: bidang._count.PesertaMagang, // Ini sekarang jadi akurat
       };
 
       return res.status(200).json({

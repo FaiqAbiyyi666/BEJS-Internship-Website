@@ -50,6 +50,18 @@ module.exports = {
       );
       const currentYear = today.getFullYear();
 
+      const activePesertaLogic = {
+        status: 'APPROVED',
+        ajuan: {
+          some: {
+            statusUsulan: 'APPROVED',
+            tglMulai: { lte: today },
+            tglSelesai: { gte: today },
+            sertifikat: { is: null },
+          },
+        },
+      };
+
       const [
         akunPending,
         pesertaAktif,
@@ -63,19 +75,21 @@ module.exports = {
       ] = await prisma.$transaction([
         prisma.pesertaMagang.count({ where: { status: 'PENDING' } }),
 
-        prisma.pesertaMagang.count({ where: { status: 'APPROVED' } }),
+        prisma.pesertaMagang.count({ where: activePesertaLogic }),
 
         prisma.logbook.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-
         prisma.laporanHasilMagang.count({ where: { status: 'PENDING' } }),
-
         prisma.ajuanMagang.count({ where: { statusUsulan: 'PENDING' } }),
-
         prisma.ajuanMagang.count({
           where: { statusUsulan: 'APPROVED', suratPenerimaan: null },
         }),
 
-        prisma.laporanHasilMagang.count({ where: { status: 'APPROVED' } }),
+        prisma.ajuanMagang.count({
+          where: {
+            laporan: { status: 'APPROVED' },
+            sertifikat: { is: null },
+          },
+        }),
 
         prisma.kritikSaran.count(),
 
@@ -87,16 +101,17 @@ module.exports = {
           nama: true,
           _count: {
             select: {
-              PesertaMagang: { where: { status: 'APPROVED' } },
+              PesertaMagang: { where: activePesertaLogic },
             },
           },
         },
         where: {
           PesertaMagang: {
-            some: { status: 'APPROVED' },
+            some: activePesertaLogic,
           },
         },
       });
+
       const bidangData = bidangDataRaw.map((b) => ({
         name: b.nama,
         value: b._count.PesertaMagang,
@@ -113,9 +128,7 @@ module.exports = {
 
       const laporanStatusRaw = await prisma.laporanHasilMagang.groupBy({
         by: ['status'],
-        _count: {
-          id: true,
-        },
+        _count: { id: true },
       });
 
       const statusCounts = laporanStatusRaw.reduce((acc, curr) => {
@@ -169,7 +182,7 @@ module.exports = {
             iconName: 'Send',
           },
           {
-            title: 'Surat Perlu Dikirim',
+            title: 'Surat Magang Perlu Dikirim',
             value: suratPerluDikirim,
             iconName: 'Mail',
           },
@@ -208,7 +221,6 @@ module.exports = {
         });
       }
 
-      // Kueri ini sudah benar
       const peserta = await prisma.pesertaMagang.findUnique({
         where: { userId: userId },
         include: {

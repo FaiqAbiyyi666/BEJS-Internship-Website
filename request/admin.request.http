@@ -12,10 +12,10 @@ POST http://localhost:3000/api/admin/create-admin
 Content-Type: application/json
 
 {
-  "email": "admintik.diskominfo@gmail.com",
-  "password": "admin54321",
-  "nama": "Admin TIK",
-  "bidangId": "dc7775c3-eee7-42b1-a472-23095c522bc7"
+  "email": "magangdiskominfo.sidoarjokab@gmail.com",
+  "password": "sidoarjobersihkkn1859",
+  "nama": "Admin Magang Diskominfo Sidoarjo",
+  "bidangId": "471da871-a66c-4c29-9480-7a44eccad365"
 }
 
 ### Create SubKoordinatorBidang Account
