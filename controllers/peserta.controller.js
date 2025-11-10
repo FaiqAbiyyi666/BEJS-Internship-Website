@@ -2,19 +2,12 @@ const jwt = require('jsonwebtoken');
 const { PrismaClient, Role } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-const formatDate = (date) => {
-  if (!date) return null;
-  const d = new Date(date);
-  if (isNaN(d.getTime())) return null;
-  return d.toISOString().split('T')[0];
-};
-
-const getWeekStartDate = (date) => {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(d.setDate(diff));
-  return formatDate(monday);
+const formatPrismaDate = (dateObj) => {
+  if (!dateObj) return null;
+  const y = dateObj.getUTCFullYear();
+  const m = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(dateObj.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 };
 
 module.exports = {
@@ -197,6 +190,7 @@ module.exports = {
                   logbook: {
                     orderBy: { tanggal: 'asc' },
                   },
+                  laporan: true,
                 },
               },
             },
@@ -269,10 +263,28 @@ module.exports = {
         const bidang = ajuan?.bidang || {};
         const flatLogbook = (ajuan?.logbook || []).map((entry) => ({
           id: entry.id,
-          tanggal: formatDate(entry.tanggal),
+          tanggal: formatPrismaDate(entry.tanggal),
           isi: entry.deskripsi || '',
           done: entry.deskripsi ? entry.deskripsi.trim().length > 0 : false,
         }));
+
+        let laporanAkhirData = null;
+        if (ajuan && ajuan.laporan) {
+          laporanAkhirData = {
+            status: ajuan.laporan.status,
+            catatan: ajuan.laporan.catatan,
+            fileUrl: ajuan.laporan.fileLaporan,
+          };
+        }
+
+        let sertifikatData = null;
+        if (ajuan && ajuan.sertifikat) {
+          sertifikatData = {
+            noSertifikat: ajuan.sertifikat.noSertifikat,
+            nilai: ajuan.sertifikat.nilai,
+            fileUrl: ajuan.sertifikat.fileUrl,
+          };
+        }
 
         return {
           id: user.id,
@@ -286,14 +298,16 @@ module.exports = {
           nik: profile.nik || null,
           alamat: profile.alamat || null,
           instagram: profile.instagram || null,
-          tglLahir: formatDate(profile.tglLahir) || null,
+          tglLahir: formatPrismaDate(profile.tglLahir) || null,
           bidang: bidang.nama || 'Belum Mendaftar Bidang',
-          periodeMulai: formatDate(ajuan?.tglMulai) || '-',
-          periodeSelesai: formatDate(ajuan?.tglSelesai) || '-',
+          periodeMulai: formatPrismaDate(ajuan?.tglMulai) || '-',
+          periodeSelesai: formatPrismaDate(ajuan?.tglSelesai) || '-',
           suratMagang: statusSuratMagang,
           statusMagang: statusMagang,
           sertifikat: statusSertifikat,
           logbook: flatLogbook,
+          laporanAkhir: laporanAkhirData,
+          sertifikatData: sertifikatData,
 
           bidangId: bidang.id || null,
           ajuanId: ajuan?.id || null,
