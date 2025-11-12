@@ -104,6 +104,9 @@ router.post(
   bidang.createKuotaBidang
 );
 
+// Untuk List Bidang Magang
+router.get('/bidang/list', restrict, isAdmin, bidang.getAllBidang);
+
 // Get All Bidang
 router.get('/bidang', restrict, isAdmin, bidang.getAllKuotaBidang);
 

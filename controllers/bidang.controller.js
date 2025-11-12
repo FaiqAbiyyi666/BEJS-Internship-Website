@@ -2,30 +2,44 @@ const { PrismaClient, Prisma } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 module.exports = {
+  getAllBidang: async (req, res) => {
+    try {
+      const bidang = await prisma.kuotaBidang.findMany({
+        select: {
+          id: true,
+          nama: true,
+        },
+        orderBy: {
+          nama: 'asc',
+        },
+      });
+      res.status(200).json({ data: bidang });
+    } catch (error) {
+      console.error('Error [getAllBidang]:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  },
+
   getAllKuotaBidang: async (req, res, next) => {
     try {
-      const today = new Date(); // <--- Tambahkan tanggal hari ini
+      const today = new Date();
 
       const bidangWithCount = await prisma.kuotaBidang.findMany({
         include: {
           _count: {
             select: {
-              // Hitung relasi PesertaMagang
               PesertaMagang: {
-                // <--- AWAL LOGIKA BARU ---
                 where: {
-                  status: 'APPROVED', // 1. Profilnya disetujui
+                  status: 'APPROVED',
                   ajuan: {
-                    // 2. Dan punya setidaknya satu ajuan
                     some: {
-                      statusUsulan: 'APPROVED', // 3. Yang ajuannya disetujui
-                      tglMulai: { lte: today }, // 4. Sudah dimulai
-                      tglSelesai: { gte: today }, // 5. Dan belum selesai
-                      sertifikat: { is: null }, // 6. Dan belum lulus
+                      statusUsulan: 'APPROVED',
+                      tglMulai: { lte: today },
+                      tglSelesai: { gte: today },
+                      sertifikat: { is: null },
                     },
                   },
                 },
-                // <--- AKHIR LOGIKA BARU ---
               },
             },
           },
@@ -39,7 +53,7 @@ module.exports = {
         id: bidang.id,
         nama: bidang.nama,
         kuota: bidang.kuota,
-        pesertaAktif: bidang._count.PesertaMagang, // Ini sekarang jadi akurat
+        pesertaAktif: bidang._count.PesertaMagang,
       }));
 
       return res.status(200).json({
@@ -55,7 +69,7 @@ module.exports = {
   getKuotaBidangById: async (req, res, next) => {
     try {
       const { id } = req.params;
-      const today = new Date(); // <--- Tambahkan tanggal hari ini
+      const today = new Date();
 
       const bidang = await prisma.kuotaBidang.findUnique({
         where: { id },
@@ -63,7 +77,6 @@ module.exports = {
           _count: {
             select: {
               PesertaMagang: {
-                // <--- AWAL LOGIKA BARU ---
                 where: {
                   status: 'APPROVED',
                   ajuan: {
@@ -75,7 +88,6 @@ module.exports = {
                     },
                   },
                 },
-                // <--- AKHIR LOGIKA BARU ---
               },
             },
           },
@@ -94,7 +106,7 @@ module.exports = {
         id: bidang.id,
         nama: bidang.nama,
         kuota: bidang.kuota,
-        pesertaAktif: bidang._count.PesertaMagang, // Ini sekarang jadi akurat
+        pesertaAktif: bidang._count.PesertaMagang,
       };
 
       return res.status(200).json({

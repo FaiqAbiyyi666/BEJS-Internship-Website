@@ -183,22 +183,24 @@ module.exports = {
             .status(404)
             .json({ message: 'Data sub-koordinator tidak ditemukan' });
         }
-        where.ajuan = { peserta: { bidangId: subkoor.bidangId } };
-      } else if (req.user.role === 'admin' && bidangId) {
-        where.ajuan = { peserta: { bidangId: bidangId } };
-      } else if (req.user.role !== 'admin') {
+        where.ajuan = { bidangId: subkoor.bidangId };
+      } else if (req.user.role === 'admin') {
+        if (bidangId && bidangId !== 'all') {
+          where.ajuan = { bidangId: bidangId };
+        }
+      } else {
         return res.status(403).json({ message: 'Akses ditolak' });
       }
 
       if (tanggal) {
         try {
-          const filterDate = new Date(tanggal);
-          filterDate.setHours(0, 0, 0, 0);
+          const filterDate = new Date(tanggal + 'T00:00:00Z');
+          if (isNaN(filterDate.getTime())) throw new Error();
           where.tanggal = filterDate;
         } catch (e) {
-          return res
-            .status(400)
-            .json({ message: 'Format tanggal filter tidak valid' });
+          return res.status(400).json({
+            message: 'Format tanggal filter tidak valid (YYYY-MM-DD)',
+          });
         }
       }
 

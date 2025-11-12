@@ -48,9 +48,9 @@ module.exports = {
 
       if (search) {
         where.OR = [
-          { nama: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-          { pesan: { contains: search, mode: 'insensitive' } },
+          { nama: { contains: search } },
+          { email: { contains: search } },
+          { pesan: { contains: search } },
         ];
       }
 

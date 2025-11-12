@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const { Role, StatusPeserta } = require('@prisma/client');
 const prisma = new PrismaClient();
 const bcrypt = require('bcryptjs');
 const sendMail = require('../utils/sendEmail');
@@ -186,6 +187,76 @@ module.exports = {
     }
   },
 
+  getHistoryPesertaMagang: async (req, res) => {
+    try {
+      const { search, date, status } = req.query;
+
+      const whereClause = {
+        status: {
+          in: [StatusPeserta.APPROVED, StatusPeserta.REJECTED],
+        },
+      };
+
+      if (status && status !== 'all') {
+        if (status === 'APPROVED') {
+          whereClause.status = StatusPeserta.APPROVED;
+        } else if (status === 'REJECTED') {
+          whereClause.status = StatusPeserta.REJECTED;
+        }
+      }
+
+      if (date) {
+        const startDate = new Date(date + 'T00:00:00');
+
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 1);
+
+        whereClause.createdAt = {
+          gte: startDate,
+          lt: endDate,
+        };
+      }
+
+      if (search) {
+        whereClause.AND = [
+          {
+            OR: [
+              { namaLengkap: { contains: search } },
+              { nimNis: { contains: search } },
+              { nik: { contains: search } },
+              { instansi: { contains: search } },
+              { jurusan: { contains: search } },
+              { instagram: { contains: search } },
+              { alamat: { contains: search } },
+              {
+                user: {
+                  email: { contains: search },
+                },
+              },
+            ],
+          },
+        ];
+      }
+
+      const historyPeserta = await prisma.pesertaMagang.findMany({
+        where: whereClause,
+        orderBy: { updatedAt: 'desc' },
+        include: { user: true },
+      });
+
+      res.json({
+        success: true,
+        message: 'History persetujuan peserta magang',
+        data: historyPeserta,
+      });
+    } catch (error) {
+      console.error('Error getHistoryPesertaMagang:', error);
+      res
+        .status(500)
+        .json({ success: false, message: 'Internal server error' });
+    }
+  },
+
   getPendingPesertaMagang: async (req, res) => {
     try {
       const pendingPeserta = await prisma.pesertaMagang.findMany({
@@ -194,60 +265,13 @@ module.exports = {
         include: { user: true },
       });
 
-      const formattedData = pendingPeserta.map((peserta) => ({
-        ...peserta,
-        tglLahir: formatDate(peserta.tglLahir),
-        createdAt: formatDate(peserta.createdAt),
-        updatedAt: formatDate(peserta.updatedAt),
-        user: {
-          ...peserta.user,
-          createdAt: formatDate(peserta.user.createdAt),
-          updatedAt: formatDate(peserta.user.updatedAt),
-        },
-      }));
-
       res.json({
         success: true,
         message: 'Daftar peserta magang menunggu persetujuan',
-        data: formattedData,
+        data: pendingPeserta,
       });
     } catch (error) {
       console.error('Error getPendingPesertaMagang:', error);
-      res
-        .status(500)
-        .json({ success: false, message: 'Internal server error' });
-    }
-  },
-
-  getHistoryPesertaMagang: async (req, res) => {
-    try {
-      const historyPeserta = await prisma.pesertaMagang.findMany({
-        where: {
-          OR: [{ status: 'APPROVED' }, { status: 'REJECTED' }],
-        },
-        orderBy: { updatedAt: 'desc' },
-        include: { user: true },
-      });
-
-      const formattedData = historyPeserta.map((peserta) => ({
-        ...peserta,
-        tglLahir: formatDate(peserta.tglLahir),
-        createdAt: formatDate(peserta.createdAt),
-        updatedAt: formatDate(peserta.updatedAt),
-        user: {
-          ...peserta.user,
-          createdAt: formatDate(peserta.user.createdAt),
-          updatedAt: formatDate(peserta.user.updatedAt),
-        },
-      }));
-
-      res.json({
-        success: true,
-        message: 'History persetujuan peserta magang',
-        data: formattedData,
-      });
-    } catch (error) {
-      console.error('Error getHistoryPesertaMagang:', error);
       res
         .status(500)
         .json({ success: false, message: 'Internal server error' });

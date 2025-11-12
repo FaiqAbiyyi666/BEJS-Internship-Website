@@ -39,7 +39,7 @@ module.exports = {
         ...peserta,
         email: peserta.user.email,
         role: peserta.user.role,
-        tglLahir: formatDate(peserta.tglLahir),
+        tglLahir: formatPrismaDate(peserta.tglLahir),
       };
       delete profileData.user;
 
@@ -79,7 +79,7 @@ module.exports = {
           jurusan: user.pesertaMagang?.jurusan || null,
           instansi: user.pesertaMagang?.instansi || null,
           instagram: user.pesertaMagang?.instagram || null,
-          tglLahir: formatDate(user.pesertaMagang?.tglLahir) || null,
+          tglLahir: formatPrismaDate(user.pesertaMagang?.tglLahir) || null,
           noTelepon: user.pesertaMagang?.noTelepon || null,
           nik: user.pesertaMagang?.nik || null,
           alamat: user.pesertaMagang?.alamat || null,
