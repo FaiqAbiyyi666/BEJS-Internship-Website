@@ -1,23 +1,62 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+// const { prisma } = require('../utils/database');
 const sendEmail = require('../utils/sendEmail');
 const ejs = require('ejs');
 const path = require('path');
 
 const ITEMS_PER_PAGE = 10;
 
+const checkEligibility = (ajuan) => {
+  if (!ajuan) throw { code: 404, message: 'Data ajuan tidak ditemukan.' };
+  if (ajuan.statusUsulan !== 'APPROVED')
+    throw { code: 400, message: 'Ajuan belum disetujui.' };
+  if (ajuan.sertifikat)
+    throw { code: 400, message: 'Sertifikat sudah diterbitkan.' };
+  if (ajuan.tglSelesai >= new Date())
+    throw { code: 400, message: 'Periode magang belum selesai.' };
+  if (!ajuan.laporan || !ajuan.ulasan)
+    throw { code: 400, message: 'Laporan atau ulasan belum lengkap.' };
+
+  // Cek Logbook
+  const diffTime = Math.abs(ajuan.tglSelesai - ajuan.tglMulai);
+  const expectedDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  if (ajuan._count.logbook < expectedDays) {
+    throw { code: 400, message: 'Logbook harian belum lengkap.' };
+  }
+};
+
+// 2. Fungsi khusus menangani notifikasi (Fire & Forget)
+const sendCertificateEmail = async (peserta, bidang, link) => {
+  if (!peserta.user.email) return;
+  try {
+    const html = await ejs.renderFile(
+      path.join(__dirname, '../views/sendNotifCertificate.ejs'),
+      {
+        namaPeserta: peserta.namaLengkap,
+        namaBidang: bidang,
+        downloadLink: link,
+      }
+    );
+    await sendEmail({
+      to: peserta.user.email,
+      subject: 'Sertifikat Magang Terbit',
+      html,
+    });
+  } catch (err) {
+    console.error('Email error:', err);
+  }
+};
+
 module.exports = {
   kirimSertifikat: async (req, res, next) => {
     try {
-      const { ajuanId, noSertifikat, nilai } = req.body;
-      const { fileUrl } = req.body;
+      const { ajuanId, noSertifikat, nilai, fileUrl } = req.body;
 
       if (!ajuanId || !noSertifikat || !nilai || !fileUrl) {
-        return res.status(400).json({
-          status: false,
-          message: 'Ajuan, nomor sertifikat, nilai, dan file wajib diisi.',
-          data: null,
-        });
+        return res
+          .status(400)
+          .json({ status: false, message: 'Data tidak lengkap.' });
       }
 
       const ajuan = await prisma.ajuanMagang.findUnique({
@@ -26,72 +65,13 @@ module.exports = {
           bidang: true,
           peserta: { include: { user: true } },
           laporan: true,
-          _count: {
-            select: { logbook: true },
-          },
           sertifikat: true,
           ulasan: true,
+          _count: { select: { logbook: true } },
         },
       });
 
-      if (!ajuan || ajuan.statusUsulan !== 'APPROVED') {
-        return res.status(404).json({
-          status: false,
-          message:
-            'Gagal. Data ajuan magang yang DITERIMA untuk peserta ini tidak ditemukan.',
-          data: null,
-        });
-      }
-
-      if (ajuan.sertifikat) {
-        return res.status(400).json({
-          status: false,
-          message:
-            'Gagal. Sertifikat untuk ajuan ini sudah pernah diterbitkan.',
-          data: null,
-        });
-      }
-
-      if (ajuan.tglSelesai >= new Date()) {
-        return res.status(400).json({
-          status: false,
-          message: `Gagal. Periode magang belum selesai (Selesai pada: ${ajuan.tglSelesai.toLocaleDateString(
-            'id-ID'
-          )}).`,
-          data: null,
-        });
-      }
-
-      if (!ajuan.laporan) {
-        return res.status(400).json({
-          status: false,
-          message: 'Gagal. Peserta belum mengunggah laporan akhir.',
-          data: null,
-        });
-      }
-
-      if (!ajuan.ulasan) {
-        return res.status(400).json({
-          status: false,
-          message: 'Gagal. Peserta belum mengisi ulasan magang.',
-          data: null,
-        });
-      }
-      const countTotalDays = (startDate, endDate) => {
-        const diffTime = Math.abs(endDate - startDate);
-        return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-      };
-
-      const expectedLogbooks = countTotalDays(ajuan.tglMulai, ajuan.tglSelesai);
-      const actualLogbooks = ajuan._count.logbook;
-
-      if (actualLogbooks < expectedLogbooks) {
-        return res.status(400).json({
-          status: false,
-          message: `Gagal. Logbook peserta belum lengkap (Terisi: ${actualLogbooks} / Wajib: ${expectedLogbooks} hari).`,
-          data: null,
-        });
-      }
+      checkEligibility(ajuan);
 
       const newSertifikat = await prisma.sertifikat.create({
         data: {
@@ -104,50 +84,8 @@ module.exports = {
         },
       });
 
-      const { email: emailPeserta } = ajuan.peserta.user;
-      const { namaLengkap: namaPeserta } = ajuan.peserta;
-
-      if (!emailPeserta) {
-        console.error(
-          `Gagal mengirim email sertifikat: Email tidak ditemukan untuk peserta ${namaPeserta} (ID: ${ajuan.peserta.id})`
-        );
-        return res.status(201).json({
-          status: true,
-          message: `Sertifikat berhasil dikirim. PERINGATAN: Notifikasi email GAGAL terkirim.`,
-          data: newSertifikat,
-        });
-      }
-
-      const downloadLink = `${process.env.CLIENT_BASE_URL}/dashboard/sertifikat`;
-      const emailSubject = 'Sertifikat Magang Anda Telah Terbit! 📬';
-      const templateData = {
-        namaPeserta: namaPeserta,
-        namaBidang: ajuan.bidang.nama,
-        downloadLink: downloadLink,
-      };
-
-      const templatePath = path.join(
-        __dirname,
-        '../views/sendNotifCertificate.ejs'
-      );
-
-      ejs.renderFile(templatePath, templateData, (err, html) => {
-        if (err) {
-          console.error('Gagal me-render EJS untuk email sertifikat:', err);
-        } else {
-          sendEmail({
-            from: process.env.SENDER_GMAIL,
-            to: emailPeserta,
-            subject: emailSubject,
-            html: html,
-          }).catch((emailError) => {
-            console.error(
-              'Gagal mengirim email notifikasi sertifikat:',
-              emailError
-            );
-          });
-        }
-      });
+      const link = `${process.env.CLIENT_BASE_URL}/dashboard/sertifikat`;
+      sendCertificateEmail(ajuan.peserta, ajuan.bidang.nama, link);
 
       res.status(201).json({
         status: true,

@@ -10,6 +10,43 @@ const formatPrismaDate = (dateObj) => {
   return `${y}-${m}-${d}`;
 };
 
+function _getStatusMagang(ajuan, today) {
+  if (!ajuan) return 'Belum Mengajukan Magang';
+
+  if (ajuan.statusUsulan === 'APPROVED') {
+    const tglMulai = new Date(ajuan.tglMulai);
+    const tglSelesai = new Date(ajuan.tglSelesai);
+    tglMulai.setHours(0, 0, 0, 0);
+    tglSelesai.setHours(0, 0, 0, 0);
+
+    if (today > tglSelesai) return 'Selesai Magang';
+    if (today >= tglMulai && today <= tglSelesai) return 'Aktif Magang';
+    if (today < tglMulai) return 'Disetujui (Belum Mulai)';
+  }
+  return ajuan.statusUsulan === 'PENDING'
+    ? 'Menunggu Persetujuan'
+    : 'Ajuan Ditolak';
+}
+
+// Fungsi ini HANYA menentukan status surat
+function _getStatusSurat(ajuan) {
+  if (!ajuan) return 'Belum Mengajukan Magang';
+  if (ajuan.suratPenerimaan) return 'Sudah Dikirim';
+  if (ajuan.statusUsulan === 'APPROVED') return 'Surat Perlu Dikirim';
+  if (ajuan.statusUsulan === 'PENDING')
+    return 'Menunggu Persetujuan Ajuan Magang';
+  if (ajuan.statusUsulan === 'REJECTED') return 'Ajuan Ditolak';
+  return 'Belum Mengajukan Magang';
+}
+
+// Fungsi ini HANYA menentukan status sertifikat
+function _getStatusSertifikat(ajuan, today, statusMagang) {
+  if (!ajuan) return 'Belum Mengajukan Magang';
+  if (ajuan.sertifikat) return 'Sudah Dikirim'; // Perlu 'statusMagang' agar tahu kapan dia selesai
+  if (statusMagang === 'Selesai Magang') return 'Perlu Dikirim';
+  return 'Belum Diterbitkan';
+}
+
 module.exports = {
   getAuthenticatedUserProfile: async (req, res, next) => {
     try {
@@ -214,51 +251,13 @@ module.exports = {
         const ajuan =
           profile.ajuan && profile.ajuan.length > 0 ? profile.ajuan[0] : null;
 
-        let statusSuratMagang = 'Belum Mengajukan Magang';
-        let statusMagang = 'Belum Mengajukan Magang';
-        let statusSertifikat = 'Belum Mengajukan Magang';
-        let tglMulai = null;
-        let tglSelesai = null;
-
-        if (ajuan) {
-          if (ajuan.suratPenerimaan) {
-            statusSuratMagang = 'Sudah Dikirim';
-          } else if (ajuan.statusUsulan === 'APPROVED') {
-            statusSuratMagang = 'Surat Perlu Dikirim';
-          } else if (ajuan.statusUsulan === 'PENDING') {
-            statusSuratMagang = 'Menunggu Persetujuan Ajuan Magang';
-          } else if (ajuan.statusUsulan === 'REJECTED') {
-            statusSuratMagang = 'Ajuan Ditolak';
-          }
-
-          tglMulai = new Date(ajuan.tglMulai);
-          tglSelesai = new Date(ajuan.tglSelesai);
-          tglMulai.setHours(0, 0, 0, 0);
-          tglSelesai.setHours(0, 0, 0, 0);
-
-          if (ajuan.statusUsulan === 'APPROVED') {
-            if (today > tglSelesai) {
-              statusMagang = 'Selesai Magang';
-            } else if (today >= tglMulai && today <= tglSelesai) {
-              statusMagang = 'Aktif Magang';
-            } else if (today < tglMulai) {
-              statusMagang = 'Disetujui (Belum Mulai)';
-            }
-          } else {
-            statusMagang =
-              ajuan.statusUsulan === 'PENDING'
-                ? 'Menunggu Persetujuan'
-                : 'Ajuan Ditolak';
-          }
-
-          if (ajuan.sertifikat) {
-            statusSertifikat = 'Sudah Dikirim';
-          } else if (today > tglSelesai) {
-            statusSertifikat = 'Perlu Dikirim';
-          } else {
-            statusSertifikat = 'Belum Diterbitkan';
-          }
-        }
+        const statusMagang = _getStatusMagang(ajuan, today);
+        const statusSuratMagang = _getStatusSurat(ajuan);
+        const statusSertifikat = _getStatusSertifikat(
+          ajuan,
+          today,
+          statusMagang
+        );
 
         const bidang = ajuan?.bidang || {};
         const flatLogbook = (ajuan?.logbook || []).map((entry) => ({

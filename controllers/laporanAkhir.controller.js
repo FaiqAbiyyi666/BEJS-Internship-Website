@@ -1,6 +1,32 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// const { prisma } = require('../utils/database');
+
+const isSubmissionAllowed = (tglSelesai) => {
+  const SUBMISSION_WINDOW_DAYS = 7;
+
+  // Normalisasi waktu ke tengah malam (00:00:00) agar akurat
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const endDate = new Date(tglSelesai);
+  endDate.setHours(0, 0, 0, 0);
+
+  const startDate = new Date(endDate);
+  startDate.setDate(endDate.getDate() - SUBMISSION_WINDOW_DAYS);
+
+  return {
+    isAllowed: today >= startDate,
+    startDateFormatted: startDate.toLocaleDateString('id-ID', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    }),
+    windowDays: SUBMISSION_WINDOW_DAYS,
+  };
+};
+
 module.exports = {
   submitLaporan: async (req, res) => {
     const { id: userId } = req.user;

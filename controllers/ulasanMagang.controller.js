@@ -1,6 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// const { prisma } = require('../utils/database');
+
 function calculateTotalDays(startDate, endDate) {
   const start = new Date(startDate.getTime());
   const end = new Date(endDate.getTime());

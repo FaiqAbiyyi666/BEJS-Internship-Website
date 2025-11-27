@@ -112,7 +112,7 @@ module.exports = {
         data: user,
       });
     } catch (error) {
-      console.error('REGISTRATION ERROR:', error);
+      // console.error('REGISTRATION ERROR:', error);
       return res.status(500).json({
         status: false,
         message: 'Terjadi kesalahan pada server',

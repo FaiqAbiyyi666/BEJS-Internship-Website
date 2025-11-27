@@ -1,6 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// const { prisma } = require('../utils/database');
+
 const getApprovedInternData = async (userId) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },

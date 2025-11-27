@@ -1,7 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+// const { prisma } = require('../utils/database');
 const sendEmail = require('../utils/sendEmail');
-const { formatDate } = require('../utils/formatedDate');
+// const { formatDate } = require('../utils/formatedDate');
 const ejs = require('ejs');
 const path = require('path');
 
@@ -41,6 +42,45 @@ const cekKuota = async (bidangId) => {
     console.error('Error saat menghitung jumlah ajuan:', countError);
     throw new Error(`Gagal menghitung kuota: ${countError.message}`);
   }
+};
+
+const getEligiblePeserta = async (userId) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const peserta = await prisma.pesertaMagang.findUnique({
+    where: { userId },
+    select: {
+      id: true,
+      ajuan: {
+        where: {
+          OR: [
+            { statusUsulan: 'PENDING' },
+            { statusUsulan: 'APPROVED', tglSelesai: { gte: today } },
+          ],
+        },
+        take: 1,
+      },
+    },
+  });
+
+  if (!peserta) throw new Error('Profil peserta magang tidak ditemukan.');
+
+  if (peserta.ajuan.length > 0) {
+    const existing = peserta.ajuan[0];
+    const msg =
+      existing.statusUsulan === 'APPROVED'
+        ? 'Anda sudah diterima magang dan periode magang Anda belum selesai.'
+        : 'Anda sudah memiliki ajuan magang yang sedang diproses (PENDING).';
+
+    const error = new Error(
+      `${msg} Anda dapat mengajukan lagi setelah selesai atau ditolak.`
+    );
+    error.isEligibilityError = true; // Penanda untuk error handling
+    throw error;
+  }
+
+  return peserta;
 };
 
 module.exports = {
@@ -632,7 +672,7 @@ module.exports = {
     try {
       const { ajuanId, noSurat } = req.body;
       const { fileUrl, fileId } = req.body;
-      const pdfBuffer = req.file.buffer;
+      const pdfBuffer = req.file?.buffer;
 
       if (!ajuanId || !noSurat || !fileUrl || !fileId || !pdfBuffer) {
         return res.status(400).json({
