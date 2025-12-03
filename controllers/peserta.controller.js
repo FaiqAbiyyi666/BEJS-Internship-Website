@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { PrismaClient, Role } = require('@prisma/client');
+const { PrismaClient, Role, StatusPeserta } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const formatPrismaDate = (dateObj) => {
@@ -121,6 +121,7 @@ module.exports = {
           nik: user.pesertaMagang?.nik || null,
           alamat: user.pesertaMagang?.alamat || null,
           foto: user.pesertaMagang?.pasFoto || null,
+          ktp: user.pesertaMagang?.ktp || null,
         },
       });
     } catch (error) {
@@ -211,6 +212,9 @@ module.exports = {
       const users = await prisma.user.findMany({
         where: {
           role: Role.peserta_magang,
+          pesertaMagang: {
+            status: 'APPROVED',
+          },
         },
         include: {
           pesertaMagang: {
@@ -288,6 +292,7 @@ module.exports = {
         return {
           id: user.id,
           foto: profile.pasFoto || '/default-profile.png',
+          ktp: profile.ktp || '/default-profile.png',
           nama: profile.namaLengkap || 'Peserta Baru (Belum Isi Profil)',
           nim: profile.nimNis || null,
           email: user.email,

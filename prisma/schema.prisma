@@ -64,6 +64,7 @@ model PesertaMagang {
   alamat      String
   instagram   String
   pasFoto     String        @map("pas_foto")
+  ktp         String        @map("foto_ktp")
   status      StatusPeserta @default(PENDING)
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")

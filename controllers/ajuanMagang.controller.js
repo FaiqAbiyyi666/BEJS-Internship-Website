@@ -127,8 +127,30 @@ module.exports = {
         });
       }
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // --- MULAI VALIDASI TANGGAL ---
+      const startDate = new Date(durasiMulai);
+      const endDate = new Date(durasiSelesai);
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+
+      if (startDate < todayDate) {
+        return res.status(400).json({
+          status: false,
+          message: 'Tanggal mulai magang tidak boleh kurang dari hari ini.',
+          data: null,
+        });
+      }
+
+      const minEndDate = new Date(startDate);
+      minEndDate.setMonth(minEndDate.getMonth() + 1);
+
+      if (endDate < minEndDate) {
+        return res.status(400).json({
+          status: false,
+          message: 'Durasi magang minimal harus 1 bulan.',
+          data: null,
+        });
+      }
 
       const peserta = await prisma.pesertaMagang.findUnique({
         where: { userId: userIdFromToken },
@@ -140,7 +162,7 @@ module.exports = {
                 { statusUsulan: 'PENDING' },
                 {
                   statusUsulan: 'APPROVED',
-                  tglSelesai: { gte: today },
+                  tglSelesai: { gte: todayDate },
                 },
               ],
             },

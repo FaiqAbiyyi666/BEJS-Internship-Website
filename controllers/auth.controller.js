@@ -28,7 +28,9 @@ module.exports = {
       } = req.body;
 
       const pasFotoUrl = req.body.pasFotoUrl;
+      const fotoKtpUrl = req.body.fotoKtpUrl;
 
+      // Validasi Tanggal Lahir
       let parsedTglLahir = null;
       if (tglLahir) {
         parsedTglLahir = new Date(tglLahir);
@@ -48,6 +50,7 @@ module.exports = {
         !nik ||
         !alamat ||
         !pasFotoUrl ||
+        !fotoKtpUrl ||
         !instagram
       ) {
         return res.status(400).json({
@@ -69,29 +72,35 @@ module.exports = {
 
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      const newUser = await prisma.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          role: Role.peserta_magang,
-        },
-      });
+      // Transaction agar jika insert Peserta gagal, User tidak terbuat
+      const result = await prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            role: Role.peserta_magang,
+          },
+        });
 
-      let user = await prisma.pesertaMagang.create({
-        data: {
-          userId: newUser.id,
-          namaLengkap,
-          tglLahir: parsedTglLahir,
-          noTelepon,
-          nik,
-          nimNis: nimNis || null,
-          instansi: instansi || null,
-          jurusan: jurusan || null,
-          alamat,
-          instagram: instagram,
-          status: StatusPeserta.PENDING,
-          pasFoto: pasFotoUrl,
-        },
+        const userPeserta = await tx.pesertaMagang.create({
+          data: {
+            userId: newUser.id,
+            namaLengkap,
+            tglLahir: parsedTglLahir,
+            noTelepon,
+            nik,
+            nimNis: nimNis || null,
+            instansi: instansi || null,
+            jurusan: jurusan || null,
+            alamat,
+            instagram: instagram,
+            status: StatusPeserta.PENDING,
+            pasFoto: pasFotoUrl,
+            ktp: fotoKtpUrl,
+          },
+        });
+
+        return userPeserta;
       });
 
       const htmlEmail = await ejs.renderFile(
@@ -109,7 +118,7 @@ module.exports = {
       return res.status(201).json({
         status: true,
         message: 'Registrasi berhasil. Menunggu persetujuan admin.',
-        data: user,
+        data: result,
       });
     } catch (error) {
       // console.error('REGISTRATION ERROR:', error);

@@ -12,7 +12,7 @@ const dashboard = require('../controllers/dashboard.controller');
 const statistik = require('../controllers/statistik.controller');
 const { restrict, isPesertaMagang } = require('../middlewares/auth.middleware');
 const {
-  uploadPasFoto,
+  uploadBerkasRegistrasi,
   uploadBerkasAjuan,
   uploadLaporanAkhir,
   uploadLogbookFile,
@@ -29,7 +29,7 @@ router.put(
   '/profile',
   restrict,
   isPesertaMagang,
-  uploadPasFoto,
+  uploadBerkasRegistrasi,
   peserta.updateUserProfile
 );
 

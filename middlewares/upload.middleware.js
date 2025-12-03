@@ -27,34 +27,57 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-const uploadPasFoto = (req, res, next) => {
-  upload.single('pasFoto')(req, res, async (err) => {
+const uploadBerkasRegistrasi = (req, res, next) => {
+  const uploadHandler = upload.fields([
+    { name: 'pasFoto', maxCount: 1 },
+    { name: 'fotoKtp', maxCount: 1 },
+  ]);
+
+  uploadHandler(req, res, async (err) => {
+    // Cek Error Upload Multer
     if (err) {
       return res.status(400).json({ message: err.message });
     }
 
-    if (!req.file) {
+    // Jika tidak ada file sama sekali, lanjut (validasi ada di controller)
+    if (!req.files) {
       return next();
     }
 
     try {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      const ext = path.extname(req.file.originalname);
-      const fileName = `pasfoto-${uniqueSuffix}${ext}`;
+      // --- FUNGSI HELPER UPLOAD KE IMAGEKIT ---
+      const uploadToImageKit = async (file, folderName, filePrefix) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = path.extname(file.originalname);
+        const fileName = `${filePrefix}-${uniqueSuffix}${ext}`;
 
-      const result = await imagekit.upload({
-        file: req.file.buffer,
-        fileName: fileName,
-        folder: '/pas_foto/',
-      });
+        return await imagekit.upload({
+          file: file.buffer,
+          fileName: fileName,
+          folder: folderName,
+        });
+      };
 
-      req.body.pasFotoUrl = result.url;
+      // --- PROSES UPLOAD PAS FOTO ---
+      if (req.files['pasFoto']) {
+        const file = req.files['pasFoto'][0];
+        const result = await uploadToImageKit(file, '/pas_foto/', 'pasfoto');
+        req.body.pasFotoUrl = result.url;
+      }
+
+      // --- PROSES UPLOAD KTP ---
+      if (req.files['fotoKtp']) {
+        const file = req.files['fotoKtp'][0];
+        const result = await uploadToImageKit(file, '/ktp/', 'ktp');
+        req.body.fotoKtpUrl = result.url;
+      }
+
       next();
     } catch (error) {
-      console.error(error);
+      console.error('ImageKit Upload Error:', error);
       return res
         .status(500)
-        .json({ message: 'Gagal mengunggah pas foto ke ImageKit.' });
+        .json({ message: 'Gagal mengunggah berkas ke server.' });
     }
   });
 };
@@ -286,7 +309,7 @@ const uploadLogbookFile = (req, res, next) => {
 };
 
 module.exports = {
-  uploadPasFoto,
+  uploadBerkasRegistrasi,
   uploadBerkasAjuan,
   uploadSuratPenerimaan,
   uploadSertifikat,
