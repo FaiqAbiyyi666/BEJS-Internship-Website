@@ -386,12 +386,16 @@ module.exports = {
 
   getAllAjuanMagang: async (req, res, next) => {
     try {
-      const { role, userId } = req.user;
+      const { role, id: userId } = req.user;
       const { status, search, page = 1, limit = 10 } = req.query;
 
       let whereClause = {};
 
       if (role === 'sub_koordinator_bidang') {
+        if (!userId) {
+          return res.status(401).json({ message: 'User ID tidak valid.' });
+        }
+
         const subKoor = await prisma.subKoordinatorBidang.findUnique({
           where: { userId: userId },
           select: { bidangId: true },

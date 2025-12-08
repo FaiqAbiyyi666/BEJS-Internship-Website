@@ -83,7 +83,7 @@ module.exports = {
   isAdminOrSubKoordinator: (req, res, next) => {
     if (
       req.user.role !== 'admin' &&
-      req.user.role !== 'sub_koordinator_magang'
+      req.user.role !== 'sub_koordinator_bidang'
     ) {
       return res.status(403).json({
         status: false,

@@ -11,14 +11,23 @@ const sertifikat = require('../controllers/sertifikat.controller');
 const logbook = require('../controllers/logbook.controller');
 const laporanAkhir = require('../controllers/laporanAkhir.controller');
 const dashboard = require('../controllers/dashboard.controller');
-const { restrict, isAdmin } = require('../middlewares/auth.middleware');
+const {
+  restrict,
+  isAdmin,
+  isAdminOrSubKoordinator,
+} = require('../middlewares/auth.middleware');
 const {
   uploadSuratPenerimaan,
   uploadSertifikat,
 } = require('../middlewares/upload.middleware');
 
 router.post('/create-admin', admin.createAdmin);
-router.get('/profile', restrict, isAdmin, admin.getAdminProfile);
+router.get(
+  '/profile',
+  restrict,
+  isAdminOrSubKoordinator,
+  admin.getAdminProfile
+);
 router.post('/change-password', restrict, isAdmin, admin.changeAdminPassword);
 
 // Daftar peserta magang pending
@@ -114,27 +123,42 @@ router.get('/bidang', restrict, isAdmin, bidang.getAllKuotaBidang);
 router.get('/bidang/:id', restrict, isAdmin, bidang.getKuotaBidangById);
 
 // Get All Data Magang
-router.get('/data-magang', restrict, isAdmin, peserta.getAllPesertaMagang);
+router.get(
+  '/data-magang',
+  restrict,
+  isAdminOrSubKoordinator,
+  peserta.getAllPesertaMagang
+);
 
 // Get All Data Ajuan Magang
-router.get('/ajuan-magang', restrict, isAdmin, ajuan.getAllAjuanMagang);
+router.get(
+  '/ajuan-magang',
+  restrict,
+  isAdminOrSubKoordinator,
+  ajuan.getAllAjuanMagang
+);
 
 // Memberikan Balasan Ajuan Magang
 router.patch(
   '/ajuan-magang/:id/status',
   restrict,
-  isAdmin,
+  isAdminOrSubKoordinator,
   ajuan.updateStatusAjuan
 );
 
 // Route untuk mengambil daftar peserta yang diterima
-router.get('/peserta-diterima', restrict, isAdmin, ajuan.getPesertaDiterima);
+router.get(
+  '/peserta-diterima',
+  restrict,
+  isAdminOrSubKoordinator,
+  ajuan.getPesertaDiterima
+);
 
 // Route untuk mengirim surat (meng-upload)
 router.post(
   '/kirim-surat',
   restrict,
-  isAdmin,
+  isAdminOrSubKoordinator,
   uploadSuratPenerimaan,
   ajuan.kirimSuratPenerimaan
 );
@@ -143,21 +167,31 @@ router.post(
 router.get(
   '/riwayat-surat-penerimaan',
   restrict,
-  isAdmin,
+  isAdminOrSubKoordinator,
   ajuan.getAllRiwayatSurat
 );
 
 // URL akan menjadi /api/admin/kritik-saran
-router.get('/kritik-saran', restrict, isAdmin, kritikSaran.getAllKritikSaran);
+router.get(
+  '/kritik-saran',
+  restrict,
+  isAdminOrSubKoordinator,
+  kritikSaran.getAllKritikSaran
+);
 
 // Endpoint untuk admin mengambil semua ulasan (memerlukan login admin)
-router.get('/ulasan-magang', restrict, isAdmin, ulasan.getAllUlasanForAdmin);
+router.get(
+  '/ulasan-magang',
+  restrict,
+  isAdminOrSubKoordinator,
+  ulasan.getAllUlasanForAdmin
+);
 
 // Endpoint untuk admin mengirim sertifikat
 router.post(
   '/kirim-sertifikat',
   restrict,
-  isAdmin,
+  isAdminOrSubKoordinator,
   uploadSertifikat,
   sertifikat.kirimSertifikat
 );
@@ -165,42 +199,57 @@ router.post(
 router.get(
   '/sertifikat/history',
   restrict,
-  isAdmin,
+  isAdminOrSubKoordinator,
   sertifikat.getHistorySertifikat
 );
 
 router.get(
   '/ajuan-for-sertifikat',
   restrict,
-  isAdmin,
+  isAdminOrSubKoordinator,
   sertifikat.getAjuanForSertifikat
 );
 
-router.get('/logbook/all', restrict, isAdmin, logbook.getAllLogbooks);
+router.get(
+  '/logbook/all',
+  restrict,
+  isAdminOrSubKoordinator,
+  logbook.getAllLogbooks
+);
 
-router.get('/logbook/:id', restrict, isAdmin, logbook.getLogbookById);
+router.get(
+  '/logbook/:id',
+  restrict,
+  isAdminOrSubKoordinator,
+  logbook.getLogbookById
+);
 
 router.get(
   '/laporan-akhir/pending',
   restrict,
-  isAdmin,
+  isAdminOrSubKoordinator,
   laporanAkhir.getLaporanMasuk
 );
 
 router.get(
   '/laporan-akhir/history',
   restrict,
-  isAdmin,
+  isAdminOrSubKoordinator,
   laporanAkhir.getLaporanRiwayat
 );
 
 router.patch(
   '/laporan-akhir/respond/:id',
   restrict,
-  isAdmin,
+  isAdminOrSubKoordinator,
   laporanAkhir.responseLaporan
 );
 
-router.get('/dashboard-admin', restrict, isAdmin, dashboard.getDashboardStats);
+router.get(
+  '/dashboard-admin',
+  restrict,
+  isAdminOrSubKoordinator,
+  dashboard.getDashboardStats
+);
 
 module.exports = router;

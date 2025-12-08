@@ -418,47 +418,72 @@ module.exports = {
 
   getAdminProfile: async (req, res) => {
     const userId = req.user.id;
+    const userRole = req.user.role; // Ambil role dari token (req.user)
 
     try {
-      const admin = await prisma.admin.findUnique({
-        where: {
-          userId: userId,
-        },
-        include: {
-          user: {
-            select: {
-              email: true,
-              role: true,
-            },
-          },
-          bidang: {
-            select: {
-              id: true,
-              nama: true,
-            },
-          },
-        },
-      });
+      let profileData = null;
 
-      if (!admin) {
-        return res
-          .status(404)
-          .json({ message: 'Profil admin tidak ditemukan' });
+      // KONDISI 1: JIKA USER ADALAH ADMIN
+      if (userRole === 'admin') {
+        const admin = await prisma.admin.findUnique({
+          where: { userId: userId },
+          include: {
+            user: { select: { email: true, role: true } },
+            bidang: { select: { id: true, nama: true } }, // Admin mungkin punya bidang (opsional)
+          },
+        });
+
+        if (!admin)
+          return res
+            .status(404)
+            .json({ message: 'Profil admin tidak ditemukan' });
+
+        profileData = {
+          nama: admin.nama,
+          email: admin.user.email,
+          role: admin.user.role,
+          tanggalBergabung: admin.createdAt,
+          bidang: admin.bidang
+            ? { id: admin.bidang.id, nama: admin.bidang.nama }
+            : null,
+        };
       }
 
-      const profileData = {
-        nama: admin.nama,
-        email: admin.user.email,
-        role: admin.user.role,
-        tanggalBergabung: admin.createdAt,
-        bidang: admin.bidang
-          ? { id: admin.bidang.id, nama: admin.bidang.nama }
-          : null,
-      };
+      // KONDISI 2: JIKA USER ADALAH SUB KOORDINATOR
+      else if (userRole === 'sub_koordinator_bidang') {
+        const subKoor = await prisma.subKoordinatorBidang.findUnique({
+          where: { userId: userId },
+          include: {
+            user: { select: { email: true, role: true } },
+            bidang: { select: { id: true, nama: true } }, // Sub Koor PASTI punya bidang
+          },
+        });
 
+        if (!subKoor)
+          return res
+            .status(404)
+            .json({ message: 'Profil sub koordinator tidak ditemukan' });
+
+        profileData = {
+          nama: subKoor.nama,
+          email: subKoor.user.email,
+          role: subKoor.user.role,
+          tanggalBergabung: subKoor.createdAt,
+          bidang: subKoor.bidang
+            ? { id: subKoor.bidang.id, nama: subKoor.bidang.nama }
+            : null,
+        };
+      }
+
+      // KONDISI LAIN
+      else {
+        return res.status(403).json({ message: 'Role tidak dikenali' });
+      }
+
+      // Response ke Frontend (Strukturnya SAMA untuk kedua role)
       res.status(200).json(profileData);
     } catch (error) {
-      console.error('Error fetching admin profile:', error);
+      console.error('Error fetching profile:', error);
       res.status(500).json({ message: 'Terjadi kesalahan pada server' });
     }
   },
