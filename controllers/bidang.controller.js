@@ -4,19 +4,53 @@ const prisma = new PrismaClient();
 module.exports = {
   getAllBidang: async (req, res) => {
     try {
-      const bidang = await prisma.kuotaBidang.findMany({
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const bidangList = await prisma.kuotaBidang.findMany({
         select: {
           id: true,
           nama: true,
+          kuota: true,
+          _count: {
+            select: {
+              ajuan: {
+                where: {
+                  statusUsulan: 'APPROVED',
+                  tglSelesai: {
+                    gte: today,
+                  },
+                },
+              },
+            },
+          },
         },
         orderBy: {
           nama: 'asc',
         },
       });
-      res.status(200).json({ data: bidang });
+
+      const bidangTersedia = bidangList
+        .filter((item) => {
+          const terpakai = item._count.ajuan;
+          return item.kuota > terpakai;
+        })
+        .map((item) => ({
+          id: item.id,
+          nama: item.nama,
+        }));
+
+      res.status(200).json({
+        status: true,
+        message: 'Berhasil mengambil data bidang yang tersedia',
+        data: bidangTersedia,
+      });
     } catch (error) {
       console.error('Error [getAllBidang]:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      res.status(500).json({
+        status: false,
+        message: 'Internal server error',
+      });
     }
   },
 

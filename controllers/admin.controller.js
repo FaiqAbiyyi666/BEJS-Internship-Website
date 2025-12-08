@@ -428,6 +428,7 @@ module.exports = {
           user: {
             select: {
               email: true,
+              role: true,
             },
           },
           bidang: {
@@ -448,6 +449,7 @@ module.exports = {
       const profileData = {
         nama: admin.nama,
         email: admin.user.email,
+        role: admin.user.role,
         tanggalBergabung: admin.createdAt,
         bidang: admin.bidang
           ? { id: admin.bidang.id, nama: admin.bidang.nama }
